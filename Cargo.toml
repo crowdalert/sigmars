@@ -1,0 +1,23 @@
+[package]
+name = "sigmars"
+version = "0.1.1"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/crowdalert/sigmars"
+readme = "README.md"
+keywords = ["sigma", "detection", "security", "secops", "siem"]
+category = ["security", "parser"]
+description = "A library for sigmahq rule collections"
+
+[dependencies]
+chrono = "0.4.38"
+glob = "0.3.1"
+lazy_static = "1.5.0"
+regex = "1.11.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yml = "0"
+cidr = { version = "0.3.0" }
+pest = { version = "2.7.14", features = ["pretty-print"] }
+pest_derive = { version = "2.7.14", features = ["grammar-extras"] }
+uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }

@@ -1,0 +1,19 @@
+INT          = @{ ASCII_DIGIT+ }
+ALPHA        = _{ 'a'..'z' | 'A'..'Z' }
+ASCII_DIGIT  = _{ '0'..'9' }
+ALPHANUMERIC = _{ ALPHA | ASCII_DIGIT }
+WHITESPACE   = _{ " " | "\t" | "\n" }
+
+program      = { SOI ~ expr ~ EOI }
+  expr       = { prefix? ~ primary ~ (infix ~ prefix? ~ primary )* }
+
+prefix       = _{ not | xof }
+  not        = { "not" }
+  xof        = { INT ~ WHITESPACE* ~ "of" | "all of" }
+
+infix        = _{ or | and }
+  or         = { "or" }
+  and        = { "and" }
+
+primary      = _{ identifier | "(" ~ expr ~ ")" }
+  identifier = @{ (ALPHA | "_" | "*" | "?") ~ (ALPHANUMERIC | "_" | "*" | "?")*  }
