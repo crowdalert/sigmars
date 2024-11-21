@@ -1,43 +1,27 @@
-use super::rule::Rule;
+use crate::{correlation, detection, RuleType, SigmaRule};
 use glob;
-use std::collections::{HashMap, HashSet};
+use serde::Deserialize;
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-use crate::event::Event;
+use super::Event;
 
-#[derive(Debug, Default)]
-struct LogSource {
-    category: HashMap<Option<String>, HashSet<String>>,
-    product: HashMap<Option<String>, HashSet<String>>,
-    service: HashMap<Option<String>, HashSet<String>>,
-    extra: HashMap<String, HashMap<Option<String>, HashSet<String>>>,
-}
-
-impl LogSource {
-    fn extend(&mut self, other: LogSource) {
-        self.category.extend(other.category);
-        self.product.extend(other.product);
-        self.service.extend(other.service);
-    }
-
-    fn get(&self, key: &str) -> Option<&HashMap<Option<String>, HashSet<String>>> {
-        match key {
-            "category" => Some(&self.category),
-            "product" => Some(&self.product),
-            "service" => Some(&self.service),
-            k => self.extra.get(k),
-        }
-    }
-}
-
+/// A collection of Sigma detection and correlation rules
 #[derive(Debug, Default)]
 pub struct SigmaCollection {
-    rules: HashMap<String, Rule>,
-    logsource: LogSource,
+    correlations: correlation::RuleSet,
+    detections: detection::RuleSet,
+    rules: HashMap<String, Arc<SigmaRule>>,
 }
 
 impl SigmaCollection {
-    pub fn load_ruleset(&mut self, path: &str) -> Result<usize, Box<dyn std::error::Error>> {
-        let rules = glob::glob(format!("{}/**/*.yml", path).as_str())?
+    pub fn new_from_dir(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut collection = SigmaCollection::default();
+        collection.load_from_dir(path)?;
+        Ok(collection)
+    }
+
+    pub fn load_from_dir(&mut self, path: &str) -> Result<u32, Box<dyn std::error::Error>> {
+        let collection = glob::glob(format!("{}/**/*.yml", path).as_str())?
             .filter_map(Result::ok)
             .into_iter()
             .filter_map(|entry| {
@@ -47,101 +31,116 @@ impl SigmaCollection {
                         e
                     })
                     .ok()
-                    .and_then(|s| {
-                        serde_yml::from_str::<Rule>(s.as_str())
-                            .map_err(|e| {
-                                eprintln!(
-                                    "error parsing rule: {} ({})",
-                                    entry.to_string_lossy(),
-                                    e
-                                );
-                                e
-                            })
-                            .ok()
-                    })
             })
-            .map(|rule| (rule.id.clone(), rule))
-            .collect::<HashMap<String, Rule>>();
-
-        rules.values().for_each(|rule| {
-            self.logsource
-                .category
-                .entry(rule.logsource.category.clone())
-                .or_insert_with(|| HashSet::new())
-                .insert(rule.id.clone());
-
-            self.logsource
-                .product
-                .entry(rule.logsource.product.clone())
-                .or_insert_with(|| HashSet::new())
-                .insert(rule.id.clone());
-
-            self.logsource
-                .service
-                .entry(rule.logsource.service.clone())
-                .or_insert_with(|| HashSet::new())
-                .insert(rule.id.clone());
-        });
-
-        let additions = rules.len();
-
-        self.rules.extend(rules);
-
-        Ok(additions)
-    }
-
-    pub fn extend(&mut self, other: SigmaCollection) {
-        self.rules.extend(other.rules);
-        self.logsource.extend(other.logsource);
-    }
-
-    pub fn eval<'a>(&'a self, event: &'a Event) -> Vec<&'a Rule> {
-        /*
-         * evaluates a filtered ruleset against an Event with metadata
-         * using the 'logsource' taxonomy to filter the ruleset
-         */
-        let filters = event
-            .metadata
-            .get("logsource")
-            .map(|logsource| {
-                logsource
-                    .as_object()
-                    .map(|logsource| {
-                        logsource
-                            .iter()
-                            .filter_map(|(k, v)| {
-                                v.as_str().and_then(|taxonomy| Some((k.clone(), taxonomy)))
-                            })
-                            .collect::<HashMap<String, &str>>()
+            .filter_map(|s| {
+                s.parse::<SigmaCollection>()
+                    .map_err(|e| {
+                        eprintln!("error parsing rule: {}", e);
+                        e
                     })
-                    .unwrap_or_default()
+                    .ok()
             })
-            .unwrap_or_default();
-
-        let mut rules: HashSet<&String> = self.rules.keys().collect();
-
-        filters
-            .iter()
-            .for_each(|(k, v)| match self.logsource.get(k) {
-                Some(filter) => {
-                    filter.get(&Some(v.to_string())).map(|f| {
-                        rules.retain(|r| f.contains(*r));
-                    });
-                }
-                _ => {}
+            .fold(SigmaCollection::default(), |mut acc, f| {
+                acc.rules.extend(f.rules);
+                acc.detections = acc.rules.values().collect::<Vec<_>>().into();
+                acc.correlations = acc.rules.values().collect::<Vec<_>>().into();
+                acc
             });
 
-        rules
-            .into_iter()
-            .filter_map(|rule| {
-                self.rules
-                    .get(rule)
-                    .and_then(|r| if r.eval(&event.data) { Some(r) } else { None })
-            })
-            .collect()
+        let count = collection.rules.len() as u32;
+
+        self.extend(collection);
+
+        Ok(count)
     }
 
-    pub fn eval_json<'a>(&'a self, log: &'a serde_json::Value) -> Vec<&'a Rule> {
-        self.rules.values().filter(|rule| rule.eval(log)).collect()
+    /// Returns the number of rules in the collection.
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+
+    /// Evaluates the collection of rules against a log event
+    ///
+    /// Uses the logsource property in event metadata
+    /// ( `%logsource` ) as the Sigma logsource taxonomy to filter the ruleset.
+    ///
+    /// The event is responsible for declaring its filters, to capture the widest
+    /// set of detections
+    pub fn eval(&self, event: &Event) -> Vec<Arc<SigmaRule>> {
+        let mut matches = self.detections.eval(&event);
+        self.correlations.eval(&event, &mut matches);
+        matches
+    }
+}
+
+impl Extend<Arc<SigmaRule>> for SigmaCollection {
+    fn extend<T: IntoIterator<Item = Arc<SigmaRule>>>(&mut self, iter: T) {
+        let mut rules = self
+            .rules
+            .iter()
+            .map(|(_, rule)| rule.clone())
+            .collect::<Vec<_>>();
+
+        rules.extend(iter);
+
+        *self = rules.into();
+    }
+}
+
+impl IntoIterator for SigmaCollection {
+    type Item = Arc<SigmaRule>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rules.into_values().collect::<Vec<_>>().into_iter()
+    }
+}
+
+impl FromStr for SigmaCollection {
+    type Err = Box<dyn std::error::Error>;
+
+    /// Parses a `SigmaCollection` from YAML (may contain multiple documents)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(serde_yml::Deserializer::from_str(&s)
+            .map(|de| SigmaRule::deserialize(de).map_err(|e| e.into()))
+            .collect::<Result<Vec<_>, Self::Err>>()?
+            .into_iter()
+            .map(|r| Arc::new(r))
+            .collect::<Vec<_>>()
+            .into())
+    }
+}
+
+impl From<Vec<Arc<SigmaRule>>> for SigmaCollection {
+    fn from(rules: Vec<Arc<SigmaRule>>) -> Self {
+        let rules = rules
+            .into_iter()
+            .map(|rule| (rule.id.clone(), rule))
+            .collect::<HashMap<_, _>>();
+
+        let detections: detection::RuleSet = rules
+            .values()
+            .filter(|r| matches!(r.rule, RuleType::Detection(_)))
+            .collect::<Vec<_>>()
+            .into();
+
+        let correlations: correlation::RuleSet = rules.values().collect::<Vec<_>>().into();
+
+        SigmaCollection {
+            detections,
+            correlations,
+            rules,
+        }
+    }
+}
+
+impl ToString for SigmaCollection {
+    /// Converts the `SigmaCollection` to a multi-document YAML String
+    fn to_string(&self) -> String {
+        self.rules
+            .values()
+            .filter_map(|rule| serde_yml::to_string(rule.as_ref()).ok())
+            .collect::<Vec<String>>()
+            .join("---\n")
     }
 }

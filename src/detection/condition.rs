@@ -1,11 +1,14 @@
+//! This module provides the `Condition` struct and related implementations for parsing and evaluating conditions in Sigma rules.
+
 use std::collections::HashMap;
 
 use pest::iterators::Pairs;
 use pest::pratt_parser::PrattParser;
 use pest::Parser;
 
+/// The parser for Sigma conditions.
 #[derive(pest_derive::Parser)]
-#[grammar = "sigma_condition.pest"]
+#[grammar = "detection/condition.pest"]
 pub struct ConditionParser;
 
 lazy_static::lazy_static! {
@@ -22,6 +25,7 @@ lazy_static::lazy_static! {
     };
 }
 
+/// Represents a node in the condition abstract syntax tree (AST).
 #[derive(Debug, PartialEq, Clone)]
 enum ConditionNode {
     Identifier(String),
@@ -34,12 +38,14 @@ enum ConditionNode {
     },
 }
 
+/// Represents a boolean operator in a condition.
 #[derive(Debug, PartialEq, Clone)]
 pub enum BoolOp {
     Or,
     And,
 }
 
+/// Represents the type of an XOf condition.
 #[derive(Debug, PartialEq, Clone)]
 pub enum XOfType {
     NOf(i64),
@@ -47,6 +53,7 @@ pub enum XOfType {
 }
 
 impl ConditionNode {
+    /// Parses a condition string into a `ConditionNode`.
     pub fn from_str(input: &str) -> Result<ConditionNode, Box<dyn std::error::Error>> {
         let parsed = ConditionParser::parse(Rule::expr, input)?;
         ConditionNode::parse(parsed)
@@ -104,6 +111,7 @@ impl ConditionNode {
     }
 }
 
+/// Evaluates a condition node against a statement.
 fn eval(statement: &HashMap<&String, bool>, begin: &ConditionNode) -> bool {
     match begin {
         ConditionNode::Identifier(id) => *(statement.get(id).unwrap_or(&false)),
@@ -127,16 +135,20 @@ fn eval(statement: &HashMap<&String, bool>, begin: &ConditionNode) -> bool {
     }
 }
 
+/// Represents a condition in a Sigma rule.
 #[derive(Debug)]
 pub struct Condition {
     ast: ConditionNode,
 }
 
 impl Condition {
+    /// Creates a new `Condition` from a string input.
     pub fn new(input: &str) -> Result<Condition, Box<dyn std::error::Error>> {
         let parsed = ConditionNode::from_str(input)?;
         Ok(Condition { ast: parsed })
     }
+
+    /// Evaluates the condition against a statement.
     pub fn eval(&self, statement: &HashMap<&String, bool>) -> bool {
         eval(statement, &self.ast)
     }

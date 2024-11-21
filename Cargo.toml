@@ -1,6 +1,6 @@
 [package]
 name = "sigmars"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/crowdalert/sigmars"
@@ -20,4 +20,5 @@ serde_yml = "0"
 cidr = { version = "0.3.0" }
 pest = { version = "2.7.14", features = ["pretty-print"] }
 pest_derive = { version = "2.7.14", features = ["grammar-extras"] }
+petgraph = "0.6.5"
 uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }

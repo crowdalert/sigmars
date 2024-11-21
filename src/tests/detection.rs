@@ -1,4 +1,4 @@
-use super::*;
+use crate::detection::detection::Detection;
 
 #[test]
 fn test_detection() {
