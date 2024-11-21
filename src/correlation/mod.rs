@@ -1,4 +1,4 @@
-mod rule;
+pub(crate) mod rule;
 mod ruleset;
 mod state;
 

@@ -6,6 +6,8 @@ use super::{CorrelationRule, DetectionRule};
 use chrono::prelude::*;
 use serde::{self, Deserialize, Serialize};
 use serde_json::Value;
+use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
+use std::fmt;
 
 /// Evaluates the given log entry against the rule.
 pub trait Eval {
@@ -30,17 +32,8 @@ pub enum RuleType {
     Correlation(CorrelationRule),
 }
 
-impl Eval for RuleType {
-    fn eval(&self, log: &Value, previous: Option<&Vec<Arc<SigmaRule>>>) -> bool {
-        match self {
-            RuleType::Detection(r) => r.eval(log, previous),
-            RuleType::Correlation(r) => r.eval(log, previous),
-        }
-    }
-}
-
 /// Represents a Sigma rule
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub struct SigmaRule {
     pub title: String,
@@ -62,6 +55,15 @@ pub struct SigmaRule {
     pub rule: RuleType,
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
+}
+
+impl Eval for RuleType {
+    fn eval(&self, log: &Value, previous: Option<&Vec<Arc<SigmaRule>>>) -> bool {
+        match self {
+            RuleType::Detection(r) => r.eval(log, previous),
+            RuleType::Correlation(r) => r.eval(log, previous),
+        }
+    }
 }
 
 /// Convert a Sigma rule to JSON as OCSF Detection Finding
@@ -139,5 +141,91 @@ impl Eq for SigmaRule {}
 impl Hash for SigmaRule {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
+    }
+}
+
+struct SigmaRuleSeed;
+
+impl<'de> DeserializeSeed<'de> for SigmaRuleSeed {
+    type Value = SigmaRule;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<SigmaRule, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(SigmaRuleVisitor)
+    }
+}
+
+struct SigmaRuleVisitor;
+
+impl<'de> Visitor<'de> for SigmaRuleVisitor {
+    type Value = SigmaRule;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a Sigma rule")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<SigmaRule, V::Error>
+    where
+        V: serde::de::MapAccess<'de>,
+    {
+        #[derive(Deserialize)]
+        struct SigmaRuleHelper {
+            pub title: String,
+            pub id: String,
+            pub name: Option<String>,
+            pub description: Option<String>,
+            pub references: Option<Vec<String>>,
+            pub author: Option<String>,
+            pub date: Option<String>,
+            pub modified: Option<String>,
+            pub status: Option<Status>,
+            pub license: Option<String>,
+            pub tags: Option<Vec<String>>,
+            pub scope: Option<String>,
+            pub fields: Option<Vec<String>>,
+            pub falsepositives: Option<Vec<String>>,
+            pub level: Option<String>,
+            #[serde(flatten)]
+            pub rule: RuleType,
+            #[serde(flatten)]
+            pub extra: HashMap<String, serde_json::Value>,
+        }
+
+        let mut helper = SigmaRuleHelper::deserialize(de::value::MapAccessDeserializer::new(&mut map))?;
+
+        if let RuleType::Correlation(ref mut correlation) = helper.rule {
+            correlation.inner.id = helper.id.clone();
+        }
+
+        Ok(SigmaRule {
+            title: helper.title,
+            id: helper.id,
+            name: helper.name,
+            description: helper.description,
+            references: helper.references,
+            author: helper.author,
+            date: helper.date,
+            modified: helper.modified,
+            status: helper.status,
+            license: helper.license,
+            tags: helper.tags,
+            scope: helper.scope,
+            fields: helper.fields,
+            falsepositives: helper.falsepositives,
+            level: helper.level,
+            rule: helper.rule,
+            extra: helper.extra,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for SigmaRule {
+    fn deserialize<D>(deserializer: D) -> Result<SigmaRule, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        SigmaRuleSeed.deserialize(deserializer)
     }
 }

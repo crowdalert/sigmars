@@ -56,6 +56,8 @@ pub(crate) struct Correlation {
     )]
     timespan: u64,
     group_by: Vec<String>,
+    #[serde(skip)]
+    pub(crate) id: String,
 }
 
 impl Eval for Correlation {
@@ -81,7 +83,7 @@ impl Eval for Correlation {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CorrelationRule {
     #[serde(rename = "correlation")]
-    inner: Correlation,
+    pub(crate) inner: Correlation,
 }
 
 impl CorrelationRule {
