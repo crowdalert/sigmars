@@ -1,4 +1,7 @@
-use crate::{correlation, detection, RuleType, SigmaRule};
+#[cfg(feature = "correlation")]
+use crate::correlation;
+
+use crate::{detection, RuleType, SigmaRule};
 use glob;
 use serde::Deserialize;
 use std::{collections::HashMap, str::FromStr, sync::Arc};
@@ -8,7 +11,11 @@ use super::Event;
 /// A collection of Sigma detection and correlation rules
 #[derive(Debug, Default)]
 pub struct SigmaCollection {
-    correlations: correlation::RuleSet,
+    #[cfg(feature = "correlation")]
+    pub correlations: correlation::RuleSet,
+    #[cfg(not(feature = "correlation"))]
+    #[allow(dead_code)]
+    correlations: (),
     detections: detection::RuleSet,
     rules: HashMap<String, Arc<SigmaRule>>,
 }
@@ -18,6 +25,18 @@ impl SigmaCollection {
         let mut collection = SigmaCollection::default();
         collection.load_from_dir(path)?;
         Ok(collection)
+    }
+
+    #[cfg(feature = "correlation")]
+    pub async fn init_correlation(&self) -> Result<(), Box<dyn std::error::Error>> {
+        for rule in Into::<Vec<_>>::into(&self.correlations) {
+            if let RuleType::Correlation(ref c) = rule.rule {
+                c.inner.init().await.unwrap_or_else(|e| {
+                    eprintln!("error initializing correlation rule: {}", e);
+                });
+            }
+        }
+        Ok(())
     }
 
     pub fn load_from_dir(&mut self, path: &str) -> Result<u32, Box<dyn std::error::Error>> {
@@ -41,9 +60,7 @@ impl SigmaCollection {
                     .ok()
             })
             .fold(SigmaCollection::default(), |mut acc, f| {
-                acc.rules.extend(f.rules);
-                acc.detections = acc.rules.values().collect::<Vec<_>>().into();
-                acc.correlations = acc.rules.values().collect::<Vec<_>>().into();
+                acc.extend(f.rules.values().map(|r| r.clone()));
                 acc
             });
 
@@ -67,9 +84,16 @@ impl SigmaCollection {
     /// The event is responsible for declaring its filters, to capture the widest
     /// set of detections
     pub fn eval(&self, event: &Event) -> Vec<Arc<SigmaRule>> {
-        let mut matches = self.detections.eval(&event);
-        self.correlations.eval(&event, &mut matches);
-        matches
+        self.detections.eval(&event)
+    }
+
+    #[cfg(feature = "correlation")]
+    pub async fn eval_correlation(&self, event: &Event, detections: Option<Vec<Arc<SigmaRule>>>) -> Vec<Arc<SigmaRule>> {
+        let mut detections = detections.unwrap_or_else(|| {
+            self.eval(event)
+        });
+        self.correlations.eval(&event, &mut detections).await;
+        detections
     }
 }
 
@@ -124,9 +148,12 @@ impl From<Vec<Arc<SigmaRule>>> for SigmaCollection {
             .collect::<Vec<_>>()
             .into();
 
+        #[cfg(feature = "correlation")]
         let correlations: correlation::RuleSet = rules.values().collect::<Vec<_>>().into();
+        #[cfg(not(feature = "correlation"))]
+        let correlations = ();
 
-        SigmaCollection {
+        Self {
             detections,
             correlations,
             rules,

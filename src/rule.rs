@@ -1,7 +1,10 @@
 /// The `Eval` trait defines a method for evaluating a log entry against a rule.
 use std::{collections::HashMap, hash::Hash, sync::Arc};
 
-use super::{CorrelationRule, DetectionRule};
+use crate::DetectionRule;
+
+#[cfg(feature = "correlation")]
+use crate::CorrelationRule;
 
 use chrono::prelude::*;
 use serde::{self, Deserialize, Serialize};
@@ -10,7 +13,7 @@ use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
 use std::fmt;
 
 /// Evaluates the given log entry against the rule.
-pub trait Eval {
+pub(crate) trait Eval {
     fn eval(&self, log: &Value, previous: Option<&Vec<Arc<SigmaRule>>>) -> bool;
 }
 
@@ -55,15 +58,6 @@ pub struct SigmaRule {
     pub rule: RuleType,
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
-}
-
-impl Eval for RuleType {
-    fn eval(&self, log: &Value, previous: Option<&Vec<Arc<SigmaRule>>>) -> bool {
-        match self {
-            RuleType::Detection(r) => r.eval(log, previous),
-            RuleType::Correlation(r) => r.eval(log, previous),
-        }
-    }
 }
 
 /// Convert a Sigma rule to JSON as OCSF Detection Finding
@@ -119,14 +113,6 @@ impl From<&SigmaRule> for Value {
         };
 
         value
-    }
-}
-
-impl Eval for SigmaRule {
-    /// Evaluates the given log entry against the Sigma rule.
-
-    fn eval(&self, log: &Value, previous: Option<&Vec<Arc<SigmaRule>>>) -> bool {
-        self.rule.eval(log, previous)
     }
 }
 
@@ -195,8 +181,8 @@ impl<'de> Visitor<'de> for SigmaRuleVisitor {
 
         let mut helper = SigmaRuleHelper::deserialize(de::value::MapAccessDeserializer::new(&mut map))?;
 
-        if let RuleType::Correlation(ref mut correlation) = helper.rule {
-            correlation.inner.id = helper.id.clone();
+        if let RuleType::Correlation(ref mut rule) = helper.rule {
+            rule.inner.id = helper.id.clone();
         }
 
         Ok(SigmaRule {
@@ -228,4 +214,19 @@ impl<'de> Deserialize<'de> for SigmaRule {
     {
         SigmaRuleSeed.deserialize(deserializer)
     }
+}
+
+#[cfg(not(feature = "correlation"))]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Correlation {
+    #[serde(skip)]
+    pub id: String,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_yml::Value>,
+}
+#[cfg(not(feature = "correlation"))]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CorrelationRule {
+    #[serde(rename = "correlation")]
+    pub inner: Correlation
 }

@@ -51,12 +51,12 @@ impl<'de> Deserialize<'de> for DetectionRule {
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
-        struct RuleWrapper {
+        struct RuleHelper {
             logsource: LogSource,
             detection: serde_yml::Value,
         }
         // Deserialize the detection rule from the deserializer
-        let rule = RuleWrapper::deserialize(deserializer)?;
+        let rule = RuleHelper::deserialize(deserializer)?;
 
         // Compile the detection criteria
         let compiled = Detection::new(&rule.detection).map_err(serde::de::Error::custom)?;

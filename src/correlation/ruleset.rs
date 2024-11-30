@@ -1,4 +1,4 @@
-use crate::{Eval, Event, RuleType, SigmaRule};
+use crate::{Event, RuleType, SigmaRule};
 use petgraph::graph::{self, DiGraph, Graph};
 use petgraph::Directed;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ pub struct RuleSet {
 }
 
 impl RuleSet {
-    pub fn eval(&self, event: &Event, matched: &mut Vec<Arc<SigmaRule>>) {
+    pub async fn eval(&self, event: &Event, matched: &mut Vec<Arc<SigmaRule>>) {
         let candidates = self.graph.filter_map(
             |idx, rule| {
                 matched
@@ -23,18 +23,44 @@ impl RuleSet {
             |_, _| Some(()),
         );
 
-        let _ = petgraph::algo::toposort(&candidates, None).map(|rules| {
+        let sorted = petgraph::algo::toposort(&candidates, None)
+        .map(|rules| {
             rules
                 .into_iter()
                 .map(|idx| &self.graph[idx])
-                .for_each(|rule| {
-                    if let RuleType::Correlation(ref correlation) = rule.rule {
-                        if correlation.eval(&event.data, Some(&matched)) {
-                            matched.push((*rule).clone());
-                        }
+                .filter_map(|rule| {
+                    if let RuleType::Correlation(_) = rule.rule {
+                        Some(rule)
+                    } else { None }
+                }).collect::<Vec<_>>()
+            }).unwrap_or_default();
+
+            for rule in sorted {
+                if let RuleType::Correlation(correlation) = &rule.rule {
+                    if correlation.eval(&event.data, matched).await {
+                        matched.push(rule.clone());
                     }
-                });
-        });
+                }
+            }
+    }
+}
+
+/*
+impl Iterator for &RuleSet {
+    type Item = Arc<SigmaRule>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(idx) = self.graph.node_indices().next() {
+            Some(self.graph[idx].clone())
+        } else {
+            None
+        }
+    }
+}
+*/
+impl From<&RuleSet> for Vec<Arc<SigmaRule>> {
+    fn from(ruleset: &RuleSet) -> Vec<Arc<SigmaRule>> {
+        ruleset.graph.node_indices().map(|idx| ruleset.graph[idx].clone()).collect()
     }
 }
 

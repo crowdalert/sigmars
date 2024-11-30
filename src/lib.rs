@@ -6,6 +6,7 @@
 //! [`Sigma`]: https://sigmahq.io/
 //!
 mod collection;
+#[cfg(feature = "correlation")]
 mod correlation;
 mod detection;
 mod event;
@@ -14,6 +15,8 @@ mod rule;
 pub(crate) use rule::Eval;
 
 pub use collection::SigmaCollection;
+
+#[cfg(feature = "correlation")]
 pub use correlation::CorrelationRule;
 pub use detection::DetectionRule;
 pub use event::Event;

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::collection::*;
 
-static COLLECTION: &str = r#"
+pub static COLLECTION: &str = r#"
 title: Correlation - Multiple Failed Logins Followed by Successful Login
 id: b180ead8-d58f-40b2-ae54-c8940995b9b6
 status: experimental
@@ -30,12 +30,12 @@ name: multiple_failed_login
 correlation:
     type: event_count
     rules:
-        - failed_login
+        - 53ba33fd-3a50-4468-a5ef-c583635cfa92
     group-by:
         - User
     timespan: 10m
     condition:
-        gte: 10
+        gte: 2
 ---
 title: Single failed login
 id: 53ba33fd-3a50-4468-a5ef-c583635cfa92
