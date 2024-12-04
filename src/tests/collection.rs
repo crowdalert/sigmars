@@ -77,15 +77,49 @@ detection:
         EventID:
             - 528
             - 4624
+    condition: selection
+---
+title: Google Update Service Install and Run
+id: c3d98fc1-ecc8-44e1-9601-bb456834e0df
+correlation:
+    type: temporal
+    rules:
+        - 0c0b8c97-14c1-4f88-b304-0a2d77e0b1ba
+        - 6c65378f-a59b-4a9c-ac8b-b1c5ff3ca111
+    group-by:
+        - Host
+    timespan: 5m
+---
+title: Google Update Service Install
+id: 0c0b8c97-14c1-4f88-b304-0a2d77e0b1ba
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID: 7045
+        ServiceName: 'Google Update'
+    condition: selection
+---
+title: Google Update Service Run
+id: 6c65378f-a59b-4a9c-ac8b-b1c5ff3ca111
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        Image:
+            - 'C:\Program Files(x86)\Google\GoogleUpdate.exe'
     condition: selection"#;
 
 #[test]
 fn test_collection() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
-    assert!(collection.len() == 5);
+    assert!(collection.len() == 8);
 }
+
 #[test]
-fn test_filtered_match() {
+fn test_filter_matching_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
     let event = crate::Event {
@@ -101,7 +135,7 @@ fn test_filtered_match() {
 }
 
 #[test]
-fn test_filtered_no_match() {
+fn test_filter_no_match_with_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
     let event = crate::Event {
@@ -116,7 +150,7 @@ fn test_filtered_no_match() {
 }
 
 #[test]
-fn test_filter_without_metadata() {
+fn test_filter_no_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
     let event = crate::Event {
@@ -131,7 +165,7 @@ fn test_filter_without_metadata() {
 }
 
 #[test]
-fn test_filter_without_filters() {
+fn test_no_filter_with_metadata() {
     let collection: SigmaCollection = r#"
         title: Successful login
         id: 4d0a2c83-c62c-4ed4-b475-c7e23a9269b8
@@ -141,9 +175,34 @@ fn test_filter_without_filters() {
             category: something
         detection:
             selection:
-                EventID:
-                    - 528
-                    - 4624
+                EventID: 4624
+            condition: selection"#
+        .parse()
+        .unwrap();
+
+    let event = crate::Event {
+        metadata: HashMap::from([("logsource".to_string(), json!({"product": "windows"}))]),
+        data: json!({
+            "EventID": 4624,
+            "User": "test"
+        }),
+    };
+    let res = collection.eval(&event);
+    assert!(res.len() == 1);
+}
+
+#[test]
+fn test_no_filter_no_metadata() {
+    let collection: SigmaCollection = r#"
+        title: Successful login
+        id: 4d0a2c83-c62c-4ed4-b475-c7e23a9269b8
+        description: Detects a successful login
+        name: successful_login
+        logsource:
+            category: something
+        detection:
+            selection:
+                EventID: 4624
             condition: selection"#
         .parse()
         .unwrap();

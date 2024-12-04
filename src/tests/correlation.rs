@@ -11,10 +11,7 @@ async fn test_event_count() {
     collection.init_correlation().await.unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test"
@@ -30,15 +27,12 @@ async fn test_event_count() {
 }
 
 #[test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_event_count_no_correlation() {
+async fn test_event_count_no_matching_groupby() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init_correlation().await.unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test"
@@ -50,10 +44,7 @@ async fn test_event_count_no_correlation() {
     assert!(res.len() == 1);
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test2"
@@ -66,15 +57,32 @@ async fn test_event_count_no_correlation() {
 }
 
 #[test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_event_count_no_groupby() {
+    let collection: SigmaCollection = COLLECTION.parse().unwrap();
+    collection.init_correlation().await.unwrap();
+
+    let event = crate::Event {
+        metadata: HashMap::new(),
+        data: json!({
+                "EventID": 4625
+            }
+        ),
+    };
+
+    let res = collection.eval_correlation(&event, None).await;
+    assert!(res.len() == 1);
+
+    let res = collection.eval_correlation(&event, None).await;
+    assert!(res.len() == 1);
+}
+
+#[test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_value_count() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init_correlation().await.unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test",
@@ -87,10 +95,7 @@ async fn test_value_count() {
     assert!(res.len() == 1);
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test2",
@@ -100,7 +105,6 @@ async fn test_value_count() {
     };
 
     let res = collection.eval_correlation(&event, None).await;
-
     assert!(res.len() == 2);
 }
 
@@ -110,10 +114,7 @@ async fn test_value_count_unmatched_groupby() {
     collection.init_correlation().await.unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test",
@@ -126,10 +127,7 @@ async fn test_value_count_unmatched_groupby() {
     assert!(res.len() == 1);
 
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
+        metadata: HashMap::new(),
         data: json!({
                 "EventID": 4625,
                 "User": "test2",

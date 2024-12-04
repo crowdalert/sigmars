@@ -77,6 +77,32 @@ fn test_detection_list() {
 }
 
 #[test]
+fn test_detection_map_is_and() {
+    let detection = r#"
+        selection:
+            foo: bar
+            baz: quux
+        condition: selection
+        "#;
+
+    let detection =
+        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+
+    let log = serde_json::json!({
+        "foo": "bar"
+    });
+
+    assert_eq!(detection.eval(&log), false);
+
+    let log = serde_json::json!({
+        "foo": "bar",
+        "baz": "quux"
+    });
+
+    assert_eq!(detection.eval(&log), true);
+}
+
+#[test]
 fn test_modifiers() {
     let detection = r#"
         selection:
@@ -157,7 +183,7 @@ fn test_fieldref() {
 fn test_cidr() {
     let detection = r#"
         selection:
-            foo|cidr: 10.0.0.0/8
+            foo|cidr: 10.0.0.0/16
         condition: selection
         "#;
 
@@ -165,9 +191,16 @@ fn test_cidr() {
         Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
-        "foo": "10.2.3.4"
+        "foo": "10.0.1.2"
     });
     assert_eq!(detection.eval(&log), true);
+
+    let log = serde_json::json!({
+        "foo": "10.1.2.3"
+    });
+    assert_eq!(detection.eval(&log), false);
+
+
 }
 
 #[test]
@@ -185,21 +218,12 @@ fn test_cidr_to_cidr() {
         "foo": "10.0.1.0/24"
     });
     assert_eq!(detection.eval(&log), true);
-}
 
-#[test]
-fn test_cidr_to_cidr_fail() {
-    let detection = r#"
-        selection:
-            foo|cidr: 10.0.0.0/16
-        condition: selection
-        "#;
-    let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
     let log = serde_json::json!({
         "foo": "10.1.0.0/24"
     });
     assert_eq!(detection.eval(&log), false);
+
 }
 
 #[test]
@@ -219,15 +243,26 @@ fn test_all() {
         "foo": ["bar", "baz"]
     });
     assert_eq!(detection.eval(&log), true);
+
+    let log = serde_json::json!({
+        "foo": ["bar", "quux"]
+    });
+    assert_eq!(detection.eval(&log), false);
+
+    let log = serde_json::json!({
+        "foo": ["bar"]
+    });
+    assert_eq!(detection.eval(&log), false);
+
 }
 
 #[test]
-fn test_all_fail() {
+fn test_all_map_implicit() {
     let detection = r#"
         selection:
-            foo|all:
-                - bar
-                - baz
+            foo: test1
+            bar: test2
+            baz: test3
         condition: selection
         "#;
 
@@ -235,7 +270,22 @@ fn test_all_fail() {
         Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
-        "foo": ["bar", "quux"]
+        "foo": "test1",
+        "bar": "test2",
+        "baz": "test3"
+    });
+    assert_eq!(detection.eval(&log), true);
+
+    let log = serde_json::json!({
+        "foo": "test1",
+        "bar": "test2",
+        "baz": "test4"
+    });
+    assert_eq!(detection.eval(&log), false);
+
+    let log = serde_json::json!({
+        "foo": "test1",
+        "bar": "test2"
     });
     assert_eq!(detection.eval(&log), false);
 }
