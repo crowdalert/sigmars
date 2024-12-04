@@ -4,5 +4,5 @@ pub(crate) mod rule;
 mod ruleset;
 mod state;
 
-pub use serde::CorrelationRule;
 pub(crate) use ruleset::RuleSet;
+pub use serde::CorrelationRule;

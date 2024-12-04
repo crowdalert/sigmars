@@ -17,50 +17,47 @@ impl RuleSet {
                 matched
                     .iter()
                     .filter_map(|r| self.ruleidx.get(&r.id))
-                    .any(|n| petgraph::algo::has_path_connecting(&self.graph, *n, idx, None) || n == &idx)
+                    .any(|n| {
+                        petgraph::algo::has_path_connecting(&self.graph, *n, idx, None) || n == &idx
+                    })
                     .then(|| rule)
             },
             |_, _| Some(()),
         );
 
         let sorted = petgraph::algo::toposort(&candidates, None)
-        .map(|rules| {
-            rules
-                .into_iter()
-                .map(|idx| &self.graph[idx])
-                .filter_map(|rule| {
-                    if let RuleType::Correlation(_) = rule.rule {
-                        Some(rule)
-                    } else { None }
-                }).collect::<Vec<_>>()
-            }).unwrap_or_default();
+            .map(|rules| {
+                rules
+                    .into_iter()
+                    .map(|idx| &self.graph[idx])
+                    .filter_map(|rule| {
+                        if let RuleType::Correlation(_) = rule.rule {
+                            Some(rule)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
 
-            for rule in sorted {
-                if let RuleType::Correlation(correlation) = &rule.rule {
-                    if correlation.eval(&event.data, matched).await {
-                        matched.push(rule.clone());
-                    }
+        for rule in sorted {
+            if let RuleType::Correlation(correlation) = &rule.rule {
+                if correlation.eval(&event.data, matched).await {
+                    matched.push(rule.clone());
                 }
             }
-    }
-}
-
-/*
-impl Iterator for &RuleSet {
-    type Item = Arc<SigmaRule>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(idx) = self.graph.node_indices().next() {
-            Some(self.graph[idx].clone())
-        } else {
-            None
         }
     }
 }
-*/
+
 impl From<&RuleSet> for Vec<Arc<SigmaRule>> {
     fn from(ruleset: &RuleSet) -> Vec<Arc<SigmaRule>> {
-        ruleset.graph.node_indices().map(|idx| ruleset.graph[idx].clone()).collect()
+        ruleset
+            .graph
+            .node_indices()
+            .map(|idx| ruleset.graph[idx].clone())
+            .collect()
     }
 }
 

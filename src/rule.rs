@@ -7,9 +7,9 @@ use crate::DetectionRule;
 use crate::CorrelationRule;
 
 use chrono::prelude::*;
+use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
 use serde::{self, Deserialize, Serialize};
 use serde_json::Value;
-use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
 use std::fmt;
 
 /// Evaluates the given log entry against the rule.
@@ -179,7 +179,8 @@ impl<'de> Visitor<'de> for SigmaRuleVisitor {
             pub extra: HashMap<String, serde_json::Value>,
         }
 
-        let mut helper = SigmaRuleHelper::deserialize(de::value::MapAccessDeserializer::new(&mut map))?;
+        let mut helper =
+            SigmaRuleHelper::deserialize(de::value::MapAccessDeserializer::new(&mut map))?;
 
         if let RuleType::Correlation(ref mut rule) = helper.rule {
             rule.inner.id = helper.id.clone();
@@ -228,5 +229,5 @@ pub struct Correlation {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CorrelationRule {
     #[serde(rename = "correlation")]
-    pub inner: Correlation
+    pub inner: Correlation,
 }

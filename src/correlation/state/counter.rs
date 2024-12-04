@@ -3,10 +3,13 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::{sync::{
-    mpsc::{channel, Receiver, Sender},
-    RwLock,
-}, task::JoinHandle};
+use tokio::{
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        RwLock,
+    },
+    task::JoinHandle,
+};
 use tokio_util::time::delay_queue::DelayQueue;
 
 #[derive(Debug)]
@@ -18,6 +21,12 @@ pub struct Counter<T, K> {
 
 pub type EventCount = Counter<i64, String>;
 pub type ValueCount = Counter<HashMap<String, i64>, (String, String)>;
+
+#[derive(Debug)]
+pub enum CorrelationState {
+    EventCount(EventCount),
+    ValueCount(ValueCount),
+}
 
 pub trait CountParameter<T, K>
 where
@@ -41,7 +50,11 @@ where
         Self { map, task, tx }
     }
 
-    async fn run_queue(mut rx: Receiver<K>, map: Arc<RwLock<HashMap<String, T>>>, timeout: Duration) {
+    async fn run_queue(
+        mut rx: Receiver<K>,
+        map: Arc<RwLock<HashMap<String, T>>>,
+        timeout: Duration,
+    ) {
         let mut queue: DelayQueue<K> = DelayQueue::new();
         loop {
             tokio::select! {
@@ -52,9 +65,7 @@ where
                 },
                 recv = rx.recv() => {
                     if let Some(key) = recv {
-                        let mut map = map.write().await;
                         queue.insert(key.clone(), timeout);
-                        T::incr_entry(&mut map, &key);
                     } else {
                         break;
                     }
@@ -65,20 +76,16 @@ where
     }
 
     pub async fn incr(&self, key: &K) -> Result<(), Box<dyn std::error::Error>> {
+        let mut map = self.map.write().await;
+        T::incr_entry(&mut map, &key);
         self.tx.send(key.clone()).await?;
         Ok(())
     }
 
-    /*
-    pub async fn decr(&self, key: &K) -> Result<(), Box<dyn std::error::Error>> {
-        let mut map = self.map.write().await;
-        T::decr_entry(&mut map, key);
-        Ok(())
-    }*/
-
     pub async fn count(&self, key: &String) -> i64 {
         let map = self.map.read().await;
-        T::count(&map, key)
+        let count = T::count(&map, key);
+        count
     }
 }
 
@@ -132,7 +139,7 @@ impl CountParameter<HashMap<String, i64>, (String, String)> for HashMap<String, 
     }
     fn count(map: &HashMap<String, HashMap<String, i64>>, key: &String) -> i64 {
         if let Some(v) = map.get(key) {
-            return v.values().sum::<i64>();
+            return v.values().sum();
         }
         0
     }

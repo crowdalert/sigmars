@@ -85,7 +85,9 @@ impl RuleSet {
             .filter_map(|r| {
                 if let RuleType::Detection(detection) = &r.rule {
                     detection.eval(&event.data, None).then(|| r.clone())
-                } else { None }
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>()
     }

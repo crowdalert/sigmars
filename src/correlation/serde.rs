@@ -1,10 +1,10 @@
+use super::state;
 use serde::{de, Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
-use tokio::time::Duration;
 use std::collections::HashMap;
 use std::fmt;
-use super::state;
+use std::sync::OnceLock;
+use tokio::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -30,10 +30,15 @@ pub struct EventCount {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ValueCount {
-    #[serde(with = "serde_yml::with::singleton_map_recursive")]
+pub struct ValueCondition {
+    #[serde(with = "serde_yml::with::singleton_map_recursive", flatten)]
     pub condition: Condition,
     pub field: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ValueCount {
+    pub condition: ValueCondition,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,7 +63,7 @@ pub struct Correlation {
     #[serde(skip)]
     pub(crate) id: String,
     #[serde(skip)]
-    pub(super) state: Mutex<Option<state::EventCount>>,
+    pub(super) state: OnceLock<state::CorrelationState>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -97,7 +102,7 @@ impl<'de> Deserialize<'de> for Correlation {
             timespan,
             group_by: rule.group_by,
             id: rule.id,
-            state: Mutex::new(None),
+            state: OnceLock::new(),
         })
     }
 }

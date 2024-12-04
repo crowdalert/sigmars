@@ -88,10 +88,12 @@ impl SigmaCollection {
     }
 
     #[cfg(feature = "correlation")]
-    pub async fn eval_correlation(&self, event: &Event, detections: Option<Vec<Arc<SigmaRule>>>) -> Vec<Arc<SigmaRule>> {
-        let mut detections = detections.unwrap_or_else(|| {
-            self.eval(event)
-        });
+    pub async fn eval_correlation(
+        &self,
+        event: &Event,
+        detections: Option<Vec<Arc<SigmaRule>>>,
+    ) -> Vec<Arc<SigmaRule>> {
+        let mut detections = detections.unwrap_or_else(|| self.eval(event));
         self.correlations.eval(&event, &mut detections).await;
         detections
     }

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
 use crate::collection::*;
+use serde_json::json;
+use std::collections::HashMap;
 
 pub static COLLECTION: &str = r#"
 title: Correlation - Multiple Failed Logins Followed by Successful Login
@@ -37,6 +37,21 @@ correlation:
     condition:
         gte: 2
 ---
+title: Multiple user failed logons from one machine
+id: 5ffc8414-16c3-488e-852c-ed64b9b177f6
+description: Detects multiple failed logins to one host
+name: multiple_machine_failed_login
+correlation:
+    type: value_count
+    rules:
+        - 53ba33fd-3a50-4468-a5ef-c583635cfa92
+    group-by:
+        - Host
+    timespan: 10m
+    condition:
+        field: User
+        gte: 2
+---
 title: Single failed login
 id: 53ba33fd-3a50-4468-a5ef-c583635cfa92
 name: failed_login
@@ -67,23 +82,20 @@ detection:
 #[test]
 fn test_collection() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
-    assert!(collection.len() == 4);
+    assert!(collection.len() == 5);
 }
 #[test]
 fn test_filtered_match() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
-    let log = serde_json::json!({
-        "EventID": 4624,
-        "User": "test"});
-
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
-        data: log,
+        metadata: HashMap::from([("logsource".to_string(), json!({"product": "windows"}))]),
+        data: json!({
+            "EventID": 4624,
+            "User": "test"
+        }),
     };
+
     let res = collection.eval(&event);
     assert!(res.len() == 1);
 }
@@ -92,16 +104,12 @@ fn test_filtered_match() {
 fn test_filtered_no_match() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
-    let log = serde_json::json!({
-        "EventID": 4624,
-        "User": "test"});
-
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "linux"}),
-        )]),
-        data: log,
+        metadata: HashMap::from([("logsource".to_string(), json!({"product": "linux"}))]),
+        data: json!({
+            "EventID": 4624,
+            "User": "test"
+        }),
     };
     let res = collection.eval(&event);
     assert!(res.len() == 0);
@@ -111,13 +119,12 @@ fn test_filtered_no_match() {
 fn test_filter_without_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
-    let log = serde_json::json!({
-        "EventID": 4624,
-        "User": "test"});
-
     let event = crate::Event {
         metadata: HashMap::new(),
-        data: log,
+        data: json!({
+            "EventID": 4624,
+            "User": "test"
+        }),
     };
     let res = collection.eval(&event);
     assert!(res.len() == 1);
@@ -141,16 +148,12 @@ fn test_filter_without_filters() {
         .parse()
         .unwrap();
 
-    let log = serde_json::json!({
-        "EventID": 4624,
-        "User": "test"});
-
     let event = crate::Event {
-        metadata: HashMap::from([(
-            "logsource".to_string(),
-            serde_json::json!({"product": "windows"}),
-        )]),
-        data: log,
+        metadata: HashMap::new(),
+        data: json!({
+            "EventID": 4624,
+            "User": "test"
+        }),
     };
     let res = collection.eval(&event);
     assert!(res.len() == 1);
