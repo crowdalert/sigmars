@@ -162,7 +162,45 @@ impl Correlation {
                 }
                 true
             },
-            CorrelationType::TemporalOrdered => false,
+            CorrelationType::TemporalOrdered => {
+                let CorrelationState::ValueCount(counter) = counter else { return false; };
+                let (prev_ids, prev_names) = prev.iter()
+                .filter_map(|r| {
+                    match r.name {
+                        Some(ref name) => {
+                            if self.dependencies.contains(name) {
+                                Some((&r.id, Some(name)))
+                            } else if self.dependencies.contains(&r.id) {
+                                Some((&r.id, Some(name)))
+                            } else {
+                                None
+                            }
+                        },
+                        None => if self.dependencies.contains(&r.id) {
+                            Some((&r.id, None))
+                        } else {
+                            None
+                        }
+                    }
+                })
+                .collect::<(Vec<_>,Vec<_>)>();
+
+                for d in &self.dependencies {
+                    if counter.has_entry(&groupkey, &d).await || prev_ids.contains(&d) {
+                        let _ = counter.incr(&(groupkey.clone(), d.clone())).await;
+                    } else if prev_names.contains(&Some(d)) {
+                        if let Some(id) = prev_names.iter().position(|n| n == &Some(d))
+                        .map(|i| prev_ids[i]) {
+                            let _ = counter.incr(&(groupkey.clone(), id.clone())).await;
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            },
         }
     }
 }
