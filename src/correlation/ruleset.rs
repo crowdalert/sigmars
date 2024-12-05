@@ -26,24 +26,17 @@ impl RuleSet {
         );
 
         let sorted = petgraph::algo::toposort(&candidates, None)
-            .map(|rules| {
-                rules
-                    .into_iter()
-                    .map(|idx| &self.graph[idx])
-                    .filter_map(|rule| {
-                        if let RuleType::Correlation(_) = rule.rule {
-                            Some(rule)
-                        } else {
-                            None
-                        }
-                    })
+            .map(|sorted| sorted
+                .into_iter()
+                    .filter_map(|idx| candidates.node_weight(idx))
+                    .map(|r| *r)
                     .collect::<Vec<_>>()
-            })
+            )
             .unwrap_or_default();
 
         for rule in sorted {
             if let RuleType::Correlation(correlation) = &rule.rule {
-                if correlation.eval(&event.data, matched).await {
+                if correlation.eval(&event.data, &matched).await {
                     matched.push(rule.clone());
                 }
             }
@@ -98,7 +91,6 @@ impl From<Vec<Arc<SigmaRule>>> for RuleSet {
             }
             _ => {}
         });
-
         RuleSet { graph, ruleidx }
     }
 }

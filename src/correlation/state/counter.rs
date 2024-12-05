@@ -45,7 +45,7 @@ where
 {
     pub async fn new(timeout: Duration) -> Self {
         let map = Arc::new(RwLock::new(HashMap::<String, T>::new()));
-        let (tx, rx) = channel::<K>(1);
+        let (tx, rx) = channel::<K>(10);
         let task = tokio::spawn(Self::run_queue(rx, map.clone(), timeout));
         Self { map, task, tx }
     }
@@ -78,6 +78,7 @@ where
     pub async fn incr(&self, key: &K) -> Result<(), Box<dyn std::error::Error>> {
         let mut map = self.map.write().await;
         T::incr_entry(&mut map, &key);
+        drop(map);
         self.tx.send(key.clone()).await?;
         Ok(())
     }

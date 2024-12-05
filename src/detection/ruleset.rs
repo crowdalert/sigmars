@@ -38,39 +38,49 @@ impl RuleSet {
 
     pub fn logsource_filtered_rules(&self, target: &LogSource) -> Vec<Arc<SigmaRule>> {
         let empty = HashSet::new();
-        self.category
-            .get(&target.category)
-            .unwrap_or_else(|| {
-                if target.category.is_some() {
-                    self.category.get(&None).unwrap_or(&empty)
-                } else {
-                    &self.all
-                }
-            })
-            .intersection(self.product.get(&target.product).unwrap_or_else(|| {
-                if target.product.is_some() {
-                    self.product.get(&None).unwrap_or(&empty)
-                } else {
-                    &self.all
-                }
-            }))
+        let all = self.all.iter().collect::<HashSet<_>>();
+
+        let category = match target.category {
+            Some(_) => {
+                &self.category.get(&target.category)
+                .unwrap_or_else(|| &empty)
+                .union(self.category.get(&None).unwrap_or_else(|| &empty))
+                .collect::<HashSet<_>>()
+            },
+            None => &all,
+        };
+
+        let product = match target.product {
+            Some(_) => {
+                &self.product.get(&target.product)
+                .unwrap_or_else(|| &empty)
+                .union(self.product.get(&None).unwrap_or_else(|| &empty))
+                .collect::<HashSet<_>>()
+            },
+            None => &all,
+        };
+
+        let service = match target.service {
+            Some(_) => {
+                &self.service.get(&target.service)
+                .unwrap_or_else(|| &empty)
+                .union(self.service.get(&None).unwrap_or_else(|| &empty))
+                .collect::<HashSet<_>>()
+            },
+            None => &all,
+        };
+
+        all
+            .intersection(&category)
+            .map(|r| *r)
             .collect::<HashSet<_>>()
-            .intersection(
-                &self
-                    .service
-                    .get(&target.service)
-                    .unwrap_or_else(|| {
-                        if target.service.is_some() {
-                            self.service.get(&None).unwrap_or(&empty)
-                        } else {
-                            &self.all
-                        }
-                    })
-                    .iter()
-                    .collect::<HashSet<_>>(),
-            )
-            .map(|r| (*r).clone())
-            .collect::<Vec<_>>()
+            .intersection(&product)
+            .map(|r| *r)
+            .collect::<HashSet<_>>()
+            .intersection(&service)
+            .map(|r| *r)
+            .cloned()
+            .collect()
     }
 
     pub fn eval(&self, event: &Event) -> Vec<Arc<SigmaRule>> {
@@ -84,11 +94,12 @@ impl RuleSet {
             .iter()
             .filter_map(|r| {
                 if let RuleType::Detection(detection) = &r.rule {
-                    detection.eval(&event.data, None).then(|| r.clone())
+                    detection.eval(&event.data, None).then(|| r).or_else(|| None)
                 } else {
                     None
                 }
             })
+            .cloned()
             .collect::<Vec<_>>()
     }
 }

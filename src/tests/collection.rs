@@ -217,3 +217,45 @@ fn test_no_filter_no_metadata() {
     let res = collection.eval(&event);
     assert!(res.len() == 1);
 }
+
+#[test]
+fn test_filter_none_isolation() {
+    let collection: SigmaCollection = r#"
+title: Single failed login
+id: 53ba33fd-3a50-4468-a5ef-c583635cfa92
+name: failed_login
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID: 4625
+    condition: selection
+---
+title: Successful login
+id: 4d0a2c83-c62c-4ed4-b475-c7e23a9269b8
+description: Detects a successful login
+name: successful_login
+logsource:
+    product: windows
+detection:
+    selection:
+        EventID: 4624
+    condition: selection
+"#
+    .parse()
+    .unwrap();
+
+    let event = crate::Event {
+        metadata: HashMap::from([("logsource".to_string(), json!({"product": "windows"}))]),
+        data: json!({
+            "EventID": 4625,
+            "User": "test"
+        }),
+    };
+    let res = collection.eval(&event);
+    assert!(
+        res.len() == 1,
+        "a rule's filter in a collection should not affect another rule"
+    );
+}

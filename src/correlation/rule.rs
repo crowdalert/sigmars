@@ -72,6 +72,10 @@ impl Correlation {
                 .into_sorted_vec()
                 .join(",");
 
+                if key.len() == 0 {
+                    return false;
+                }
+
                 counter.incr(&key).await.unwrap_or_else(|e| {
                     eprintln!("Error incrementing counter: {}", e);
                 });
@@ -123,10 +127,14 @@ impl Correlation {
                     None => return false,
                 };
 
+                if key.len() == 0 {
+                    return false;
+                }
+
                 let value: String = match event.get(&c.condition.field) {
                     Some(serde_json::Value::String(v)) => v.into(),
                     Some(serde_json::Value::Number(v)) => v.to_string(),
-                    _ => return false,
+                    _ => return false
                 };
 
                 counter
@@ -137,7 +145,6 @@ impl Correlation {
                     });
 
                 let count = counter.count(&key).await;
-
                 match c.condition.condition {
                     Condition::Gt(ref v) => count > *v,
                     Condition::Gte(ref v) => count >= *v,

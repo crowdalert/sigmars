@@ -26,7 +26,7 @@ async fn test_event_count() {
     assert!(res.len() == 2);
 }
 
-#[test(flavor = "multi_thread", worker_threads = 2)]
+#[test]//(flavor = "multi_thread", worker_threads = 2)]
 async fn test_event_count_no_matching_groupby() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init_correlation().await.unwrap();
@@ -56,7 +56,7 @@ async fn test_event_count_no_matching_groupby() {
     assert!(res.len() == 1);
 }
 
-#[test(flavor = "multi_thread", worker_threads = 2)]
+#[test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_event_count_no_groupby() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init_correlation().await.unwrap();

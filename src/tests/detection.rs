@@ -199,8 +199,6 @@ fn test_cidr() {
         "foo": "10.1.2.3"
     });
     assert_eq!(detection.eval(&log), false);
-
-
 }
 
 #[test]
@@ -223,7 +221,6 @@ fn test_cidr_to_cidr() {
         "foo": "10.1.0.0/24"
     });
     assert_eq!(detection.eval(&log), false);
-
 }
 
 #[test]
@@ -253,7 +250,6 @@ fn test_all() {
         "foo": ["bar"]
     });
     assert_eq!(detection.eval(&log), false);
-
 }
 
 #[test]
