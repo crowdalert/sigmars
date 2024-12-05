@@ -27,7 +27,15 @@ pub enum CorrelationState {
     EventCount(EventCount),
     ValueCount(ValueCount),
 }
-
+impl ValueCount {
+    pub async fn has_entry(&self, groupkey: &String, key: &String) -> bool {
+        let map = self.map.read().await;
+        if let Some(groupby) = map.get(groupkey) {
+            return groupby.contains_key(key);
+        }
+        false
+    }
+}
 pub trait CountParameter<T, K>
 where
     T: Send + Sync + 'static,

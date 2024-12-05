@@ -109,7 +109,7 @@ logsource:
 detection:
     selection:
         Image:
-            - 'C:\Program Files(x86)\Google\GoogleUpdate.exe'
+          - 'C:\Program Files(x86)\Google\GoogleUpdate.exe'
     condition: selection"#;
 
 #[test]

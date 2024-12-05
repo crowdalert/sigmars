@@ -26,7 +26,7 @@ async fn test_event_count() {
     assert!(res.len() == 2);
 }
 
-#[test]//(flavor = "multi_thread", worker_threads = 2)]
+#[test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_event_count_no_matching_groupby() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init_correlation().await.unwrap();
@@ -139,4 +139,35 @@ async fn test_value_count_unmatched_groupby() {
     let res = collection.eval_correlation(&event, None).await;
 
     assert!(res.len() == 1);
+}
+
+#[test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_temporal() {
+    let collection: SigmaCollection = COLLECTION.parse().unwrap();
+    collection.init_correlation().await.unwrap();
+
+    let event = crate::Event {
+        metadata: HashMap::new(),
+        data: json!({
+            "EventID": 7045,
+            "ServiceName": "Google Update",
+            "Host": "test"
+            }
+        ),
+    };
+
+    let res = collection.eval_correlation(&event, None).await;
+    assert!(res.len() == 1);
+
+    let event = crate::Event {
+        metadata: HashMap::new(),
+        data: json!({
+                "Image": "C:\\Program Files(x86)\\Google\\GoogleUpdate.exe",
+                "Host": "test"
+            }
+        ),
+    };
+
+    let res = collection.eval_correlation(&event, None).await;
+    assert!(res.len() == 2);
 }
