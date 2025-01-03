@@ -1,9 +1,8 @@
 mod condition;
 mod rule;
-mod ruleset;
 mod selection;
 
 pub(crate) mod detection;
+pub mod filter;
 
-pub use rule::{DetectionRule, LogSource};
-pub use ruleset::RuleSet;
+pub use rule::DetectionRule;

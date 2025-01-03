@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use glob;
+
 use pest::iterators::Pairs;
 use pest::pratt_parser::PrattParser;
 use pest::Parser;
@@ -112,25 +114,47 @@ impl ConditionNode {
 }
 
 /// Evaluates a condition node against a statement.
-fn eval(statement: &HashMap<&String, bool>, begin: &ConditionNode) -> bool {
+fn is_match(statement: &HashMap<&String, bool>, begin: &ConditionNode) -> bool {
     match begin {
         ConditionNode::Identifier(id) => *(statement.get(id).unwrap_or(&false)),
-        ConditionNode::Not(inner) => !eval(statement, inner),
-        ConditionNode::XOf(xoftype, _inner) => {
-            match xoftype {
-                XOfType::NOf(_n) => {
-                    //inner.iter().filter(|i| eval(statement, i)).count() as i64 == n
-                    false
-                }
-                XOfType::AllOf() => {
-                    //inner.iter().all(|i| eval(statement, i))
+        ConditionNode::Not(inner) => !is_match(statement, inner),
+        ConditionNode::XOf(xoftype, inner) => match xoftype {
+            XOfType::NOf(n) => {
+                if let ConditionNode::Identifier(id) = inner.as_ref() {
+                    glob::Pattern::new(id)
+                        .and_then(|pattern| {
+                            Ok(statement
+                                .keys()
+                                .filter(|k| {
+                                    pattern.matches(*k)
+                                        && statement.get(*k).copied().unwrap_or(false)
+                                })
+                                .count() as i64
+                                >= *n)
+                        })
+                        .unwrap_or(false)
+                } else {
                     false
                 }
             }
-        }
+            XOfType::AllOf() => {
+                if let ConditionNode::Identifier(id) = inner.as_ref() {
+                    glob::Pattern::new(id)
+                        .and_then(|pattern| {
+                            Ok(statement
+                                .keys()
+                                .filter(|k| pattern.matches(*k))
+                                .all(|k| statement.get(k).copied().unwrap_or(false)))
+                        })
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            }
+        },
         ConditionNode::BoolOp { lhs, op, rhs } => match op {
-            BoolOp::Or => eval(statement, lhs) || eval(statement, rhs),
-            BoolOp::And => eval(statement, lhs) && eval(statement, rhs),
+            BoolOp::Or => is_match(statement, lhs) || is_match(statement, rhs),
+            BoolOp::And => is_match(statement, lhs) && is_match(statement, rhs),
         },
     }
 }
@@ -149,7 +173,7 @@ impl Condition {
     }
 
     /// Evaluates the condition against a statement.
-    pub fn eval(&self, statement: &HashMap<&String, bool>) -> bool {
-        eval(statement, &self.ast)
+    pub fn is_match(&self, statement: &HashMap<&String, bool>) -> bool {
+        is_match(statement, &self.ast)
     }
 }

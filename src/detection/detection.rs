@@ -47,12 +47,12 @@ impl Detection {
     /// # Returns
     ///
     /// Returns `true` if the log event matches the detection criteria, otherwise `false`.
-    pub fn eval(&self, log: &serde_json::Value) -> bool {
+    pub fn is_match(&self, data: &serde_json::Value) -> bool {
         let results = self
             .selections
             .iter()
-            .map(|(key, selection)| (key, selection.eval(log)))
+            .map(|(key, selection)| (key, selection.is_match(data)))
             .collect::<HashMap<&String, bool>>();
-        self.condition.eval(&results)
+        self.condition.is_match(&results)
     }
 }

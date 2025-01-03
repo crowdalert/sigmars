@@ -1,10 +1,4 @@
-/// The `Eval` trait defines a method for evaluating a log entry against a rule.
-use std::{collections::HashMap, hash::Hash, sync::Arc};
-
-use crate::DetectionRule;
-
-#[cfg(feature = "correlation")]
-use crate::CorrelationRule;
+use std::{collections::HashMap, hash::Hash};
 
 use chrono::prelude::*;
 use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
@@ -12,10 +6,10 @@ use serde::{self, Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt;
 
-/// Evaluates the given log entry against the rule.
-pub(crate) trait Eval {
-    fn eval(&self, log: &Value, previous: Option<&Vec<Arc<SigmaRule>>>) -> bool;
-}
+use crate::detection::DetectionRule;
+
+#[cfg(feature = "correlation")]
+use crate::correlation::CorrelationRule;
 
 /// Represents the status of a Sigma rule.
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,7 +24,7 @@ pub enum Status {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum RuleType {
+pub(crate) enum RuleType {
     Detection(DetectionRule),
     Correlation(CorrelationRule),
 }
@@ -55,7 +49,7 @@ pub struct SigmaRule {
     pub falsepositives: Option<Vec<String>>,
     pub level: Option<String>,
     #[serde(flatten)]
-    pub rule: RuleType,
+    pub(crate) rule: RuleType,
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
 }

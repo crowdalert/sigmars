@@ -1,21 +1,9 @@
-use std::{collections::HashMap, sync::Arc};
-
-use crate::{Eval, SigmaRule};
-
-use super::detection::Detection;
 use serde::{self, Deserialize, Serialize};
 use serde_json::Value;
 use serde_yml;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct LogSource {
-    pub category: Option<String>,
-    pub product: Option<String>,
-    pub service: Option<String>,
-    /// Additional log source information
-    #[serde(flatten)]
-    pub(crate) extra: HashMap<String, String>,
-}
+use super::detection::Detection;
+use crate::event::LogSource;
 
 /// Represents the detection criteria in a Sigma rule.
 ///
@@ -34,14 +22,8 @@ pub struct DetectionRule {
 }
 
 impl DetectionRule {
-    pub fn logsource(&self) -> &LogSource {
-        &self.logsource
-    }
-}
-
-impl Eval for DetectionRule {
-    fn eval(&self, log: &Value, _: Option<&Vec<Arc<SigmaRule>>>) -> bool {
-        self.compiled.eval(log)
+    pub fn is_match(&self, data: &Value) -> bool {
+        self.compiled.is_match(data)
     }
 }
 

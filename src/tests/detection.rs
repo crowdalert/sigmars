@@ -15,7 +15,7 @@ fn test_detection() {
         "foo": "bar"
     });
 
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -33,7 +33,7 @@ fn test_detection_fail() {
         "foo": "baz"
     });
 
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn test_detection_nested() {
         }
     });
 
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn test_detection_list() {
         "foo": "bar"
     });
 
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -92,14 +92,14 @@ fn test_detection_map_is_and() {
         "foo": "bar"
     });
 
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 
     let log = serde_json::json!({
         "foo": "bar",
         "baz": "quux"
     });
 
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn test_modifiers() {
         "foo": "barbaz"
     });
 
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn test_wildcards() {
         "baz": "foobarbaz"
     });
 
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn test_fieldref() {
             "quux": "abc"
         }
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -193,12 +193,12 @@ fn test_cidr() {
     let log = serde_json::json!({
         "foo": "10.0.1.2"
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 
     let log = serde_json::json!({
         "foo": "10.1.2.3"
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 }
 
 #[test]
@@ -215,12 +215,12 @@ fn test_cidr_to_cidr() {
     let log = serde_json::json!({
         "foo": "10.0.1.0/24"
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 
     let log = serde_json::json!({
         "foo": "10.1.0.0/24"
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 }
 
 #[test]
@@ -239,17 +239,17 @@ fn test_all() {
     let log = serde_json::json!({
         "foo": ["bar", "baz"]
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 
     let log = serde_json::json!({
         "foo": ["bar", "quux"]
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 
     let log = serde_json::json!({
         "foo": ["bar"]
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 }
 
 #[test]
@@ -270,20 +270,20 @@ fn test_all_map_implicit() {
         "bar": "test2",
         "baz": "test3"
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 
     let log = serde_json::json!({
         "foo": "test1",
         "bar": "test2",
         "baz": "test4"
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 
     let log = serde_json::json!({
         "foo": "test1",
         "bar": "test2"
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 }
 
 #[test]
@@ -303,7 +303,7 @@ fn test_numbers() {
         "foo": 42,
         "bar": 4.2
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -320,7 +320,7 @@ fn test_gt() {
     let log = serde_json::json!({
         "foo": 56
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -337,7 +337,7 @@ fn test_regex() {
     let log = serde_json::json!({
         "foo": "bar"
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn test_regex_is_case_sensitive() {
     let log = serde_json::json!({
         "foo": "BAR"
     });
-    assert_eq!(detection.eval(&log), false);
+    assert_eq!(detection.is_match(&log), false);
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn test_case_insensitive_regex() {
     let log = serde_json::json!({
         "foo": "BAR"
     });
-    assert_eq!(detection.eval(&log), true);
+    assert_eq!(detection.is_match(&log), true);
 }
 
 #[test]
@@ -385,4 +385,86 @@ fn test_regex_invalid_modifier() {
     let detection = Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap());
 
     assert_eq!(detection.is_err(), true);
+}
+
+#[test]
+fn test_nof() {
+    let log = serde_json::json!({
+        "foo": "bar"
+    });
+
+    let detection = r#"
+        selection1:
+            foo: bar
+        selection2:
+            foo: baz
+        condition: 1 of selection*
+        "#;
+
+    let detection =
+        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+
+    assert_eq!(detection.is_match(&log), true);
+
+    let detection = r#"
+    selection1:
+        foo: bar
+    selection2:
+        foo: baz
+    selection3:
+        foo: quux
+    condition: 2 of selection*
+    "#;
+
+    let detection =
+        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+
+    assert_eq!(detection.is_match(&log), false);
+
+    let detection = r#"
+    selection1:
+        foo: x
+    selection2:
+        foo: y
+    condition: 1 of selection*
+    "#;
+
+    let detection =
+        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+
+    assert_eq!(detection.is_match(&log), false);
+}
+
+#[test]
+fn test_allof() {
+    let log = serde_json::json!({
+        "foo": "bar",
+        "baz": "quux"
+    });
+
+    let detection = r#"
+        selection1:
+            foo: bar
+        selection2:
+            baz: quux
+        condition: all of selection*
+        "#;
+
+    let detection =
+        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+
+    assert_eq!(detection.is_match(&log), true);
+
+    let detection = r#"
+    selection1:
+        foo: bar
+    selection2:
+        baz: x
+    condition: all of selection*
+    "#;
+
+    let detection =
+        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+
+    assert_eq!(detection.is_match(&log), false);
 }

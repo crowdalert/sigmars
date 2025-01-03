@@ -16,6 +16,18 @@ pub enum Condition {
     Eq(i64),
 }
 
+impl Condition {
+    pub(super) fn is_match(&self, value: i64) -> bool {
+        match self {
+            Condition::Gt(n) => value > *n,
+            Condition::Gte(n) => value >= *n,
+            Condition::Lt(n) => value < *n,
+            Condition::Lte(n) => value <= *n,
+            Condition::Eq(n) => value == *n,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConditionOrList {
@@ -50,20 +62,19 @@ pub enum CorrelationType {
     TemporalOrdered,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Correlation {
     #[serde(flatten)]
     pub(super) correlation_type: CorrelationType,
-    #[serde(rename = "rules")]
-    pub(super) dependencies: Vec<String>,
+    pub(super) rules: Vec<String>,
     #[serde(serialize_with = "serialize_timespan")]
     pub(super) timespan: Duration,
     pub(super) group_by: Vec<String>,
     #[serde(skip)]
     pub(crate) id: String,
     #[serde(skip)]
-    pub(super) state: OnceLock<state::CorrelationState>,
+    pub(super) state: OnceLock<Box<dyn state::RuleState>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,8 +95,7 @@ impl<'de> Deserialize<'de> for Correlation {
         pub struct CorrelationHelper {
             #[serde(flatten)]
             pub(super) correlation_type: CorrelationType,
-            #[serde(rename = "rules")]
-            pub(super) dependencies: Vec<String>,
+            pub(super) rules: Vec<String>,
             #[serde(deserialize_with = "deserialize_timespan")]
             pub(super) timespan: Duration,
             pub(super) group_by: Vec<String>,
@@ -98,7 +108,7 @@ impl<'de> Deserialize<'de> for Correlation {
 
         Ok(Correlation {
             correlation_type: rule.correlation_type,
-            dependencies: rule.dependencies,
+            rules: rule.rules,
             timespan,
             group_by: rule.group_by,
             id: rule.id,
@@ -146,4 +156,16 @@ where
     D: Deserializer<'de>,
 {
     deserializer.deserialize_str(TimespanVisitor)
+}
+
+impl fmt::Debug for Correlation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Correlation")
+            .field("correlation_type", &self.correlation_type)
+            .field("rules", &self.rules)
+            .field("timespan", &self.timespan)
+            .field("group_by", &self.group_by)
+            .field("id", &self.id)
+            .finish()
+    }
 }

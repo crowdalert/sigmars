@@ -112,6 +112,7 @@ detection:
           - 'C:\Program Files(x86)\Google\GoogleUpdate.exe'
     condition: selection"#;
 
+
 #[test]
 fn test_collection() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
@@ -123,14 +124,18 @@ fn test_filter_matching_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([("logsource".to_string(), json!({"product": "windows"}))]),
+        logsource: crate::LogSource {
+            product: Some("windows".to_string()),
+            ..Default::default()
+        },
+        metadata: HashMap::default(),
         data: json!({
             "EventID": 4624,
             "User": "test"
         }),
     };
 
-    let res = collection.eval(&event);
+    let res = collection.get_detection_matches(&event);
     assert!(res.len() == 1);
 }
 
@@ -139,13 +144,18 @@ fn test_filter_no_match_with_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([("logsource".to_string(), json!({"product": "linux"}))]),
+        logsource: crate::LogSource {
+            product: Some("notwindows".to_string()),
+            ..Default::default()
+        },
+        metadata: HashMap::default(),
         data: json!({
             "EventID": 4624,
             "User": "test"
         }),
     };
-    let res = collection.eval(&event);
+
+    let res = collection.get_detection_matches(&event);
     assert!(res.len() == 0);
 }
 
@@ -154,13 +164,13 @@ fn test_filter_no_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::new(),
         data: json!({
             "EventID": 4624,
             "User": "test"
         }),
+        ..Default::default()
     };
-    let res = collection.eval(&event);
+    let res = collection.get_detection_matches(&event);
     assert!(res.len() == 1);
 }
 
@@ -181,13 +191,17 @@ fn test_no_filter_with_metadata() {
         .unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([("logsource".to_string(), json!({"product": "windows"}))]),
+        logsource: crate::LogSource {
+            category: Some("something".to_string()),
+            ..Default::default()
+        },
         data: json!({
             "EventID": 4624,
             "User": "test"
         }),
+        ..Default::default()
     };
-    let res = collection.eval(&event);
+    let res = collection.get_detection_matches(&event);
     assert!(res.len() == 1);
 }
 
@@ -208,13 +222,13 @@ fn test_no_filter_no_metadata() {
         .unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::new(),
         data: json!({
             "EventID": 4624,
             "User": "test"
         }),
+        ..Default::default()
     };
-    let res = collection.eval(&event);
+    let res = collection.get_detection_matches(&event);
     assert!(res.len() == 1);
 }
 
@@ -247,13 +261,17 @@ detection:
     .unwrap();
 
     let event = crate::Event {
-        metadata: HashMap::from([("logsource".to_string(), json!({"product": "windows"}))]),
         data: json!({
             "EventID": 4625,
             "User": "test"
         }),
+        logsource: crate::LogSource {
+            product: Some("windows".to_string()),
+            ..Default::default()
+        },
+        ..Default::default()
     };
-    let res = collection.eval(&event);
+    let res = collection.get_detection_matches(&event);
     assert!(
         res.len() == 1,
         "a rule's filter in a collection should not affect another rule"

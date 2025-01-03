@@ -1,215 +1,113 @@
-use std::any::Any;
-use std::{collections::BinaryHeap, sync::Arc, any::TypeId};
+use std::collections::HashSet;
 
-use super::serde::{Condition, ConditionOrList, Correlation, CorrelationRule, CorrelationType};
-use super::state::{CorrelationState, EventCount, ValueCount};
-use crate::SigmaRule;
+use super::{
+    serde::{ConditionOrList, Correlation, CorrelationRule, CorrelationType},
+    state,
+};
+use crate::Event;
 
 impl Correlation {
-    pub async fn init(&self) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(_) = self.state.get() {
-            return Err("state already initialized".into());
-        }
+    async fn is_match(
+        &self,
+        event: &Event,
+        prior: &Vec<String>,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let hashed = prior.iter().map(|r| r).collect::<HashSet<_>>();
 
-        match &self.correlation_type {
-            CorrelationType::EventCount(_) => self
-                .state
-                .set(CorrelationState::EventCount(
-                    EventCount::new(self.timespan).await,
-                )),
-            CorrelationType::ValueCount(_) => self
-                .state
-                .set(CorrelationState::ValueCount(
-                    ValueCount::new(self.timespan).await,
-                )),
-            CorrelationType::Temporal => self
-                .state
-                .set(CorrelationState::ValueCount(
-                    ValueCount::new(self.timespan).await,
-                )),
-            CorrelationType::TemporalOrdered => self
-                .state
-                .set(CorrelationState::ValueCount(
-                    ValueCount::new(self.timespan).await,
-                )),
-        }.map_err(|_| "Could not set correlation state".into())
-    }
-
-    async fn eval(&self, event: &serde_json::Value, prev: &Vec<Arc<SigmaRule>>) -> bool {
-        if (self.correlation_type.type_id() == TypeId::of::<EventCount>() || 
-            self.correlation_type.type_id() == TypeId::of::<ValueCount>()) &&
-            !self.dependencies.iter().all(|d| {
-            prev.iter().any(|r| {
-                if r.id == *d {
-                    true
-                } else if let Some(ref name) = r.name {
-                    *name == *d
-                } else {
-                    false
-                }
-            })
-        }) {
-            return false;
-        }
-
-        let counter = match self.state.get() {
-            Some(counter) => counter,
-            None => {
-                eprintln!("Correlation state not initialized");
-                return false;
-            }
+        // The sigma sepecification does not define matching behaviour for empty group_by fields
+        // So we assume that the rule does not match if the group_by field is empty
+        let Ok(group_by) = self
+            .group_by
+            .iter()
+            .map(|k| Ok((k.clone(), event.data.get(k).ok_or_else(|| ())?.clone())))
+            .collect::<Result<Vec<_>, ()>>()
+        else {
+            return Ok(false);
         };
 
-        let groupkey = match event.as_object() {
-            Some(e) => e,
-            None => return false,
-        }
-        .iter()
-        .filter_map(|(k, v)| {
-            if self.group_by.contains(k) {
-                Some(format!("{}:{}", k, v.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect::<BinaryHeap<_>>()
-        .into_sorted_vec()
-        .join(",");
+        let state = self.state.get().ok_or_else(|| "state not initialized")?;
 
-        if groupkey.len() == 0 {
-            return false;
-        }
+        Ok(match self.correlation_type {
+            CorrelationType::EventCount(ref c) => {
 
-        match &self.correlation_type {
-            CorrelationType::EventCount(c) => {
-                let CorrelationState::EventCount(counter) = counter else { return false; };
-                
-                if counter.incr(&groupkey).await.is_err() {
-                    eprintln!("{}: Error incrementing counter", self.id);
-                    return false;
-                }
-
-                let count = counter.count(&groupkey).await;
-
-                match c.condition {
-                    ConditionOrList::Condition(ref c) => {
-                        vec![c]
-                    }
-                    ConditionOrList::List(ref l) => l.iter().collect(),
-                }
-                .into_iter()
-                .all(|c| match c {
-                    Condition::Gt(ref v) => count > *v,
-                    Condition::Gte(ref v) => count >= *v,
-                    Condition::Lt(ref v) => count < *v,
-                    Condition::Lte(ref v) => count <= *v,
-                    Condition::Eq(ref v) => count == *v,
-                })
-            }
-            CorrelationType::ValueCount(c) => {
-                let CorrelationState::ValueCount(counter) = counter else { return false; };
-
-                let value: String = match event.get(&c.condition.field) {
-                    Some(serde_json::Value::String(v)) => v.into(),
-                    Some(serde_json::Value::Number(v)) => v.to_string(),
-                    _ => return false
+                if !self.rules.iter().all(|d| hashed.contains(d)) {
+                    return Ok(false);
                 };
-
-                if counter
-                    .incr(&(groupkey.clone(), value))
-                    .await
-                    .is_err() {
-                        eprintln!("{}: Error incrementing counter", self.id);
-                        return false;
-                    };
-
-                let count = counter.count(&groupkey).await;
-                match c.condition.condition {
-                    Condition::Gt(ref v) => count > *v,
-                    Condition::Gte(ref v) => count >= *v,
-                    Condition::Lt(ref v) => count < *v,
-                    Condition::Lte(ref v) => count <= *v,
-                    Condition::Eq(ref v) => count == *v,
+                let count = state.incr(&state::Key::EventCount(group_by)).await as i64;
+                match &c.condition {
+                    ConditionOrList::Condition(c) => c.is_match(count),
+                    ConditionOrList::List(conditions) => conditions.iter().all(|c| c.is_match(count)),
                 }
-            }
+            },
+            CorrelationType::ValueCount(ref c) => {
+
+                if !self.rules.iter().all(|d| hashed.contains(d)) {
+                    return Ok(false);
+                };
+                if let Some(field_value) = event.data.get(&c.condition.field) {
+                    let count = state.incr(
+                    &state::Key::ValueCount(
+                        group_by,
+                        format!("{}:{}", c.condition.field, field_value),
+                    )).await as i64;
+                    c.condition.condition.is_match(count)
+                } else { false }
+            },
             CorrelationType::Temporal => {
-                let CorrelationState::ValueCount(counter) = counter else { return false; };
-                let candidates = prev.iter().filter_map(|r| {
-                    match r.name {
-                        Some(ref name) => {
-                            if self.dependencies.contains(name) {
-                                Some(&r.id)
-                            } else if self.dependencies.contains(&r.id) {
-                                Some(&r.id)
-                            } else {
-                                None
-                            }
-                        }
-                        None => if self.dependencies.contains(&r.id) {
-                            Some(&r.id)
-                        } else {
-                            None
-                        }
+                let mut ret = true;
+                for r in self
+                .rules
+                .iter()
+                .map(|r| async {
+                    if hashed.contains(r) {
+                        state.incr(&state::Key::ValueCount(group_by.clone(), r.clone())).await
+                    } else { 
+                        state.count(&state::Key::ValueCount(group_by.clone(), r.clone())).await
                     }
-                }).collect::<Vec<_>>();
-                for c in candidates {
-                    let _ = counter.incr(&(groupkey.clone(), c.clone())).await;
-                }
-                for d in &self.dependencies {
-                    if !counter.has_entry(&groupkey, &d).await {
-                        return false;
+                })
+                .collect::<Vec<_>>() {
+                    if r.await == 0 {
+                        ret = false;
                     }
                 }
-                true
+                ret
             },
             CorrelationType::TemporalOrdered => {
-                let CorrelationState::ValueCount(counter) = counter else { return false; };
-                let (prev_ids, prev_names) = prev.iter()
-                .filter_map(|r| {
-                    match r.name {
-                        Some(ref name) => {
-                            if self.dependencies.contains(name) {
-                                Some((&r.id, Some(name)))
-                            } else if self.dependencies.contains(&r.id) {
-                                Some((&r.id, Some(name)))
-                            } else {
-                                None
-                            }
-                        },
-                        None => if self.dependencies.contains(&r.id) {
-                            Some((&r.id, None))
-                        } else {
-                            None
-                        }
+                for r in self
+                .rules
+                .iter()
+                .map(|r| async {
+                    if hashed.contains(r) {
+                        state.incr(&state::Key::ValueCount(group_by.clone(), r.clone())).await
+                    } else { 
+                        state.count(&state::Key::ValueCount(group_by.clone(), r.clone())).await
                     }
                 })
-                .collect::<(Vec<_>,Vec<_>)>();
-
-                for d in &self.dependencies {
-                    if counter.has_entry(&groupkey, &d).await || prev_ids.contains(&d) {
-                        let _ = counter.incr(&(groupkey.clone(), d.clone())).await;
-                    } else if prev_names.contains(&Some(d)) {
-                        if let Some(id) = prev_names.iter().position(|n| n == &Some(d))
-                        .map(|i| prev_ids[i]) {
-                            let _ = counter.incr(&(groupkey.clone(), id.clone())).await;
-                        } else {
-                            return false;
-                        }
-                    } else {
-                        return false;
+                .collect::<Vec<_>>() {
+                    if r.await == 0 {
+                        return Ok(false);
                     }
                 }
                 true
-            },
-        }
+            }
+        })
     }
 }
 
 impl CorrelationRule {
-    pub fn dependencies(&self) -> &Vec<String> {
-        &self.inner.dependencies
+    pub fn id(&self) -> &String {
+        &self.inner.id
     }
-    pub async fn eval(&self, log: &serde_json::Value, prior: &Vec<Arc<SigmaRule>>) -> bool {
-        self.inner.eval(log, prior).await
+
+    pub fn rules(&self) -> &Vec<String> {
+        &self.inner.rules
+    }
+
+    pub async fn is_match(
+        &self,
+        event: &Event,
+        prior: &Vec<String>,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        self.inner.is_match(event, prior).await
     }
 }

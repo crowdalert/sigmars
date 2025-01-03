@@ -10,8 +10,9 @@ category = ["security", "parser"]
 description = "A library for sigmahq rule collections"
 
 [features]
-default = ["correlation"]
+default = ["correlation", "mem_backend"]
 correlation = ["dep:tokio", "dep:tokio-util", "dep:futures-util"]
+mem_backend = []
 
 [dependencies]
 chrono = "0.4.38"
@@ -30,3 +31,6 @@ pest = { version = "2.7.14", features = ["pretty-print"] }
 pest_derive = { version = "2.7.14", features = ["grammar-extras"] }
 petgraph = "0.6.5"
 uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }
+thiserror = "2.0.8"
+anyhow = "1.0.94"
+async-trait = "0.1.83"
