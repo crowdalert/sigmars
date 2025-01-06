@@ -1,12 +1,12 @@
 use crate::detection::filter::Filter;
-use crate::{correlation, Event};
+use crate::{correlation, event::Event};
 
 use petgraph::{graph, Directed, Graph};
 use serde::Deserialize;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
-use crate::{rule::RuleType, SigmaRule};
+use crate::rule::{RuleType, SigmaRule};
 
 #[derive(Error, Debug)]
 pub enum CollectionError {

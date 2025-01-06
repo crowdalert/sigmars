@@ -11,7 +11,6 @@ use crate::detection::DetectionRule;
 #[cfg(feature = "correlation")]
 use crate::correlation::CorrelationRule;
 
-/// Represents the status of a Sigma rule.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
@@ -29,7 +28,8 @@ pub(crate) enum RuleType {
     Correlation(CorrelationRule),
 }
 
-/// Represents a Sigma rule
+/// a single Sigma rule (detection or correlation)
+/// fields are described by the [Sigma specification](https://github.com/SigmaHQ/sigma-specification)
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub struct SigmaRule {
@@ -54,7 +54,8 @@ pub struct SigmaRule {
     pub extra: HashMap<String, serde_json::Value>,
 }
 
-/// Convert a Sigma rule to JSON as OCSF Detection Finding
+/// A convenience function to convert a Sigma rule an [OCSF](https://ocsf.io) Detection Finding
+/// (as JSON)
 impl From<&SigmaRule> for Value {
     fn from(rule: &SigmaRule) -> Value {
         let time = Utc::now().timestamp_millis();

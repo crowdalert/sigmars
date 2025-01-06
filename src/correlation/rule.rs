@@ -4,7 +4,7 @@ use super::{
     serde::{ConditionOrList, Correlation, CorrelationRule, CorrelationType},
     state,
 };
-use crate::Event;
+use crate::event::Event;
 
 impl Correlation {
     async fn is_match(

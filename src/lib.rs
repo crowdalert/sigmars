@@ -7,14 +7,14 @@
 //!
 mod collection;
 mod detection;
-mod event;
-mod rule;
+
+pub mod event;
+pub mod rule;
 
 #[cfg(feature = "correlation")]
 pub mod correlation;
 
 pub use collection::SigmaCollection;
-pub use event::{Event, LogSource};
 pub use rule::SigmaRule;
 
 #[cfg(test)]
