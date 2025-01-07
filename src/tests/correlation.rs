@@ -1,8 +1,7 @@
 use serde_json::json;
 use tokio::test;
 
-//use super::collection::COLLECTION;
-use crate::{collection::*, event::LogSource};
+use crate::{collection::*, event::{Event, LogSource}};
 use std::collections::HashMap;
 
 pub static COLLECTION: &str = r#"
@@ -66,7 +65,7 @@ async fn test_event_count() {
     let mut collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "foo": "bar",
                 "correlation_group_by": "test"
@@ -88,7 +87,7 @@ async fn test_event_count_no_matching_groupby() {
     let mut collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "foo": "bar",
                 "correlation_group_by": "test"
@@ -100,7 +99,7 @@ async fn test_event_count_no_matching_groupby() {
     let res = collection.get_matches(&event).await.unwrap();
     assert!(res.len() == 1);
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "foo": "bar",
                 "correlation_group_by": "test2"
@@ -120,7 +119,7 @@ async fn test_event_count_no_groupby() {
     let mut collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "foo": "bar"
             }
@@ -141,7 +140,7 @@ async fn test_value_count() {
     let mut collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "baz": "quux",
                 "correlation_group_by": "test",
@@ -154,7 +153,7 @@ async fn test_value_count() {
     let res = collection.get_matches(&event).await.unwrap();
     assert!(res.len() == 1);
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "baz": "quux",
                 "correlation_group_by": "test",
@@ -175,7 +174,7 @@ async fn test_value_count_unmatched_groupby() {
     let mut collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "baz": "quux",
                 "correlation_group_by": "first",
@@ -188,7 +187,7 @@ async fn test_value_count_unmatched_groupby() {
     let res = collection.get_matches(&event).await.unwrap();
     assert!(res.len() == 1);
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
                 "baz": "quux",
                 "correlation_group_by": "second",
@@ -246,7 +245,7 @@ detection:
     let mut collection: SigmaCollection = rules.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let firstevent = crate::Event {
+    let firstevent = Event {
         logsource: LogSource::default(),
         metadata: HashMap::new(),
         data: json!({
@@ -259,7 +258,7 @@ detection:
     let res = collection.get_matches(&firstevent).await.unwrap();
     assert!(res.len() == 1);
 
-    let secondevent = crate::Event {
+    let secondevent = Event {
         logsource: LogSource::default(),
         metadata: HashMap::new(),
         data: json!({
@@ -328,7 +327,7 @@ detection:
     let mut collection: SigmaCollection = rules.parse().unwrap();
     collection.init(&mut backend).await;
 
-    let firstevent = crate::Event {
+    let firstevent = Event {
         logsource: LogSource::default(),
         metadata: HashMap::new(),
         data: json!({
@@ -341,7 +340,7 @@ detection:
     let res = collection.get_matches(&firstevent).await.unwrap();
     assert!(res.len() == 1);
 
-    let secondevent = crate::Event {
+    let secondevent = Event {
         logsource: LogSource::default(),
         metadata: HashMap::new(),
         data: json!({

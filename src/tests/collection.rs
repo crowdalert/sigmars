@@ -1,4 +1,5 @@
 use crate::collection::*;
+use crate::event::{Event, LogSource};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -123,8 +124,8 @@ fn test_collection() {
 fn test_filter_matching_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
-    let event = crate::Event {
-        logsource: crate::LogSource {
+    let event = Event {
+        logsource: LogSource {
             product: Some("windows".to_string()),
             ..Default::default()
         },
@@ -143,8 +144,8 @@ fn test_filter_matching_metadata() {
 fn test_filter_no_match_with_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
-    let event = crate::Event {
-        logsource: crate::LogSource {
+    let event = Event {
+        logsource: LogSource {
             product: Some("notwindows".to_string()),
             ..Default::default()
         },
@@ -163,7 +164,7 @@ fn test_filter_no_match_with_metadata() {
 fn test_filter_no_metadata() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
             "EventID": 4624,
             "User": "test"
@@ -190,8 +191,8 @@ fn test_no_filter_with_metadata() {
         .parse()
         .unwrap();
 
-    let event = crate::Event {
-        logsource: crate::LogSource {
+    let event = Event {
+        logsource: LogSource {
             category: Some("something".to_string()),
             ..Default::default()
         },
@@ -221,7 +222,7 @@ fn test_no_filter_no_metadata() {
         .parse()
         .unwrap();
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
             "EventID": 4624,
             "User": "test"
@@ -260,12 +261,12 @@ detection:
     .parse()
     .unwrap();
 
-    let event = crate::Event {
+    let event = Event {
         data: json!({
             "EventID": 4625,
             "User": "test"
         }),
-        logsource: crate::LogSource {
+        logsource: LogSource {
             product: Some("windows".to_string()),
             ..Default::default()
         },

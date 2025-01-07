@@ -109,6 +109,8 @@ impl MemBackendImpl {
 }
 
 pub type MemBackendType = Arc<MemBackendImpl>;
+
+/// An in-memory backend for correlation rules
 pub struct MemBackend(MemBackendType);
 
 impl MemBackend {

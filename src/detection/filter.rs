@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{event::LogSource, rule::RuleType, SigmaRule};
+use crate::{event::LogSource, rule::{RuleType, SigmaRule}};
 
 #[derive(Debug, Default)]
 pub struct Filter {

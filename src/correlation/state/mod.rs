@@ -38,14 +38,30 @@ impl Into<(String, Option<String>)> for &Key {
     }
 }
 
+/// manages the state of a correlation rule
+/// 
+/// The state is used to track the number of matches of the dependencies
+/// in the time period defined by the rule and should decrement the count
+/// when the time period has elapsed.
+/// 
+/// `RuleState` is a property of the individual rule and the `RuleState` trait
+/// implementation becomes an attribute of the `CorrelationRule`
 #[async_trait]
 pub trait RuleState: Send {
     async fn incr(&self, _: &Key) -> u64;
     async fn count(&self, _: &Key) -> u64;
 }
 
+/// A backend for [`RuleState`]
+/// 
+/// The backend is the shared database for all instances of [`RuleState`]
+/// in a [`SigmaCollection`]
+/// 
+/// [`RuleState`]: trait.RuleState.html
+/// [`SigmaCollection`]: struct.SigmaCollection.html
 #[async_trait]
 pub trait Backend: Send {
+    /// Register a correlation rule with the backend
     async fn register(&mut self, _: &mut CorrelationRule)
         -> Result<(), Box<dyn std::error::Error>>;
 }
