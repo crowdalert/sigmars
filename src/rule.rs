@@ -11,6 +11,7 @@ use crate::detection::DetectionRule;
 #[cfg(feature = "correlation")]
 use crate::correlation::CorrelationRule;
 
+#[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
@@ -19,6 +20,19 @@ pub enum Status {
     Experimental,
     Deprecated,
     Unsupported,
+}
+
+impl From<&str> for Status {
+    fn from(s: &str) -> Self {
+        match s {
+            "stable" => Status::Stable,
+            "test" => Status::Test,
+            "experimental" => Status::Experimental,
+            "deprecated" => Status::Deprecated,
+            "unsupported" => Status::Unsupported,
+            _ => Status::Unsupported,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,6 +64,7 @@ pub struct SigmaRule {
     pub level: Option<String>,
     #[serde(flatten)]
     pub(crate) rule: RuleType,
+    #[doc(hidden)]
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
 }

@@ -53,6 +53,8 @@ impl DependencyGraph {
     }
 }
 
+/// A collection of Sigma rules, with dependency resolution
+/// and log source filtering
 #[derive(Debug, Default)]
 pub struct SigmaCollection {
     rules: HashMap<String, SigmaRule>,
@@ -67,12 +69,16 @@ impl SigmaCollection {
         Self::default()
     }
 
+    /// Create a new `SigmaCollection` from a directory of Sigma rules
+    /// 
+    /// Rules must be in YAML format
     pub fn new_from_dir(path: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut collection = Self::default();
         collection.load_from_dir(path)?;
         Ok(collection)
     }
 
+    /// Load and add Sigma rules from a directory of YAML files
     pub fn load_from_dir(
         &mut self,
         path: &str,
@@ -103,19 +109,51 @@ impl SigmaCollection {
         Ok(count)
     }
 
-    pub fn add(&mut self, rule: SigmaRule) -> Result<(), CollectionError> {
-        self.insert(rule);
-        self.solve()
-    }
-
-    pub fn len(&self) -> usize {
-        self.rules.len()
-    }
-
-    pub fn get(&self, id: &str) -> Option<&SigmaRule> {
-        self.rules.get(id)
-    }
-
+    /// apply Sigma rules to an [`Event`], returning a list of rule IDs
+    /// that match
+    /// 
+    /// [`LogSource`] fields set in the [`Event`] act as a filter: `None` is a wildcard,
+    /// and any field set in the [`Event`] must match the corresponding field in the
+    /// [`LogSource`] for the rule to match
+    /// 
+    /// [`LogSource`]: event/struct.LogSource.html
+    /// [`Event`]: event/struct.Event.html
+    /// 
+    /// ```rust
+    /// # use std::error::Error;
+    /// # use serde_json::json;
+    /// # use sigmars::event::{Event, LogSource};
+    /// # use sigmars::SigmaCollection;
+    /// static RULES: &str = r#"
+    /// title: test rule
+    /// id: test-rule
+    /// logsource:
+    ///   category: test
+    /// detection:
+    ///   selection:
+    ///     foo: bar
+    ///   condition: selection
+    /// ---
+    /// title: test rule 2
+    /// id: test-rule-2
+    /// logsource:
+    ///   category: nomatch
+    /// detection:
+    ///   selection:
+    ///     foo: bar
+    ///   condition: selection
+    /// "#;
+    /// 
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let rules: SigmaCollection = RULES.parse()?;
+    /// let event = Event::new(json!({"foo": "bar"}))
+    ///            .logsource(LogSource::default().category("test"));
+    /// let res = rules.get_detection_matches(&event);
+    /// assert!(res.len() == 1);
+    /// assert_eq!(res[0], "test-rule");
+    /// # Ok(())
+    /// # }
+    /// 
     pub fn get_detection_matches(&self, event: &Event) -> Vec<String> {
         self.filters
             .filter(&event.logsource)
@@ -132,6 +170,43 @@ impl SigmaCollection {
             .collect()
     }
 
+    /// apply all Sigma rules to an `Event`, returning a list of rule IDs
+    /// that match, without filtering by `LogSource`
+    /// 
+    /// ```rust
+    /// # use std::error::Error;
+    /// # use serde_json::json;
+    /// # use sigmars::event::{Event, LogSource};
+    /// # use sigmars::SigmaCollection;
+    /// static RULES: &str = r#"
+    /// title: test rule
+    /// id: test-rule
+    /// logsource:
+    ///   category: test
+    /// detection:
+    ///   selection:
+    ///     foo: bar
+    ///   condition: selection
+    /// ---
+    /// title: test rule 2
+    /// id: test-rule-2
+    /// logsource:
+    ///   category: nomatch
+    /// detection:
+    ///   selection:
+    ///     foo: bar
+    ///   condition: selection
+    /// "#;
+    /// 
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let rules: SigmaCollection = RULES.parse()?;
+    /// let event = Event::new(json!({"foo": "bar"}))
+    ///            .logsource(LogSource::default().category("test"));
+    /// let res = rules.get_detection_matches_unfiltered(&event);
+    /// assert!(res.len() == 2);
+    /// # Ok(())
+    /// # }
+    ///
     pub fn get_detection_matches_unfiltered(&self, event: &Event) -> Vec<String> {
         self.rules
             .values()
@@ -144,6 +219,22 @@ impl SigmaCollection {
             })
             .map(|rule| rule.id.clone())
             .collect()
+    }
+
+
+    /// Add a Sigma rule to the collection
+    pub fn add(&mut self, rule: SigmaRule) -> Result<(), CollectionError> {
+        self.insert(rule);
+        self.solve()
+    }
+
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+
+    // retrieve a Sigma rule by ID
+    pub fn get(&self, id: &str) -> Option<&SigmaRule> {
+        self.rules.get(id)
     }
 
     fn insert(&mut self, rule: SigmaRule) {
@@ -189,6 +280,32 @@ impl SigmaCollection {
 
 #[cfg(feature = "correlation")]
 impl SigmaCollection {
+    /// Initialize a `SigmaCollection` correlation rule backend
+    /// ``` rust
+    /// # use std::error::Error;
+    /// # use serde_json::json;
+    /// # use sigmars::event::{Event, LogSource};
+    /// # use sigmars::SigmaCollection;
+    /// # use sigmars::correlation::Backend;
+    /// # use sigmars::correlation::state::mem::MemBackend;
+    /// # static RULES: &str = r#"
+    /// # title: test rule
+    /// # id: test-rule
+    /// # logsource:
+    /// #   category: test
+    /// # detection:
+    /// #   selection:
+    /// #     foo: bar
+    /// #   condition: selection
+    /// # "#;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn Error>> {
+    /// let mut rules: SigmaCollection = RULES.parse()?;
+    /// let mut backend = MemBackend::new().await;
+    /// rules.init(&mut backend).await;
+    /// # Ok(())
+    /// # }
+    /// 
     pub async fn init(&mut self, backend: &mut impl correlation::Backend) {
         for rule in self.rules.values_mut() {
             if let RuleType::Correlation(ref mut corr) = rule.rule {
@@ -197,6 +314,41 @@ impl SigmaCollection {
         }
     }
 
+
+    /// apply Sigma rules to an [`Event`], returning a list of rule IDs
+    /// similar to [`get_detection_matches`], but also evaluates correlation
+    /// rules
+    /// 
+    /// Correlation rules are evaluated after detection rules
+    /// in dependency order
+    /// 
+    /// [`get_detection_matches`]: #method.get_detection_matches
+    /// [`Event`]: event/struct.Event.html
+    pub async fn get_matches(
+        &self,
+        event: &Event,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let mut prior = self.get_detection_matches(event);
+        self.push_correlation_matches(event, &mut prior).await?;
+        Ok(prior)
+    }
+
+    /// apply all Sigma rules to an event, returning a list of rule IDs
+    /// similar to [`get_detection_matches_unfiltered`], but also evaluates correlation
+    /// rules
+    /// 
+    /// [`get_detection_matches_unfiltered`]: #method.get_detection_matches_unfiltered
+    pub async fn get_matches_unfiltered(
+        &self,
+        event: &Event,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let mut prior = self.get_detection_matches_unfiltered(event);
+        self.push_correlation_matches(event, &mut prior).await?;
+        Ok(prior)
+    }
+
+    /// apply correlation rules to an event and a list of matching detection rule IDs
+    /// correlation rule ID's are appended to the list of prior matches
     pub async fn push_correlation_matches(
         &self,
         event: &Event,
@@ -226,24 +378,6 @@ impl SigmaCollection {
             }
         }
         Ok(())
-    }
-
-    pub async fn get_matches_unfiltered(
-        &self,
-        event: &Event,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let mut prior = self.get_detection_matches_unfiltered(event);
-        self.push_correlation_matches(event, &mut prior).await?;
-        Ok(prior)
-    }
-
-    pub async fn get_matches(
-        &self,
-        event: &Event,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let mut prior = self.get_detection_matches(event);
-        self.push_correlation_matches(event, &mut prior).await?;
-        Ok(prior)
     }
 }
 

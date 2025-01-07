@@ -5,18 +5,12 @@ use serde_yml;
 use super::detection::Detection;
 use crate::event::LogSource;
 
-/// Represents the detection criteria in a Sigma rule.
-///
-/// A map containing a set of search-identifiers
-/// and a 'condition' field specifying the SAT criteria for
-/// search-identifiers
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub struct DetectionRule {
     /// The log source information for the detection rule.
     pub logsource: LogSource,
     pub detection: serde_yml::Value,
-    /// The compiled detection criteria.
     #[serde(skip)]
     compiled: Detection,
 }

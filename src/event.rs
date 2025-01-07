@@ -7,16 +7,40 @@ use std::collections::HashMap;
 /// taxonomy
 /// 
 /// implements `From<serde_json::Value>` using
-/// the "category", "product", and "service" top level
-/// fields with `String` values (if present).
+/// the `category`, `product`, and `service` top level
+/// fields with `String` values (if present)
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct LogSource {
     pub category: Option<String>,
     pub product: Option<String>,
     pub service: Option<String>,
-    /// Additional log source information
+
+    #[doc(hidden)]
     #[serde(flatten)]
     pub extra: HashMap<String, String>,
+}
+
+impl LogSource {
+    pub fn new(category: Option<String>, product: Option<String>, service: Option<String>) -> Self {
+        LogSource {
+            category,
+            product,
+            service,
+            ..Default::default()
+        }
+    }
+    pub fn category(mut self, category: &str) -> Self {
+        self.category = Some(category.to_string());
+        self
+    }
+    pub fn product(mut self, product: &str) -> Self {
+        self.product = Some(product.to_string());
+        self
+    }
+    pub fn service(mut self, service: &str) -> Self {
+        self.service = Some(service.to_string());
+        self
+    }
 }
 
 /// Encapsulates data for a log event
@@ -30,17 +54,17 @@ pub struct LogSource {
 /// ```rust
 /// # use std::error::Error;
 /// # use serde_json::{json, Value};
-/// # use sigmars::{Event, LogSource};
+/// # use sigmars::event::{Event, LogSource};
 /// # fn main() -> Result<(), Box<dyn Error>> {
 /// #
 ///  let event: Event = Event::new(json!({"foo": "bar"}))
-///                     .with_logsource(LogSource::default()); // logsource is optional
+///                     .logsource(LogSource::default()); // logsource is optional
 ///
 ///  assert_eq!(event.data.get("foo").unwrap(), &json!("bar"));
 /// 
 /// // from JSON
 ///  let mut event: Event = json!({"foo": "bar"}).into();
-///  event.logsource = LogSource { category: Some("linux".to_string()), ..Default::default() };
+///  event.logsource = LogSource::default().category("linux");
 /// 
 ///  // logsource can also be constructed from JSON
 ///  let mut event: Event = json!({"foo": "bar"}).into();
@@ -100,11 +124,11 @@ impl Event {
             ..Default::default()
         }
     }
-    pub fn with_logsource(mut self, logsource: LogSource) -> Self {
+    pub fn logsource(mut self, logsource: LogSource) -> Self {
         self.logsource = logsource;
         self
     }
-    pub fn with_metadata(mut self, metadata: HashMap<String, Value>) -> Self {
+    pub fn metadata(mut self, metadata: HashMap<String, Value>) -> Self {
         self.metadata = metadata;
         self
     }
