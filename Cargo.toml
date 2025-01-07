@@ -1,6 +1,6 @@
 [package]
 name = "sigmars"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/crowdalert/sigmars"
@@ -9,15 +9,28 @@ keywords = ["sigma", "detection", "security", "secops", "siem"]
 category = ["security", "parser"]
 description = "A library for sigmahq rule collections"
 
+[features]
+default = ["correlation", "mem_backend"]
+correlation = ["dep:tokio", "dep:tokio-util", "dep:futures-util"]
+mem_backend = []
+
 [dependencies]
 chrono = "0.4.38"
+futures-util =  { version = "0.3.31", features = ["tokio-io"], optional = true }
 glob = "0.3.1"
 lazy_static = "1.5.0"
 regex = "1.11.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yml = "0"
+tokio = { version = "1.41.0", features = ["full"], optional = true }
+tokio-util = { version = "0.7.12", features = ["full"], optional = true }
+
 cidr = { version = "0.3.0" }
 pest = { version = "2.7.14", features = ["pretty-print"] }
 pest_derive = { version = "2.7.14", features = ["grammar-extras"] }
+petgraph = "0.6.5"
 uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }
+thiserror = "2.0.8"
+anyhow = "1.0.94"
+async-trait = "0.1.83"

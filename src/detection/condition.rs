@@ -1,11 +1,16 @@
+//! This module provides the `Condition` struct and related implementations for parsing and evaluating conditions in Sigma rules.
+
 use std::collections::HashMap;
+
+use glob;
 
 use pest::iterators::Pairs;
 use pest::pratt_parser::PrattParser;
 use pest::Parser;
 
+/// The parser for Sigma conditions.
 #[derive(pest_derive::Parser)]
-#[grammar = "sigma_condition.pest"]
+#[grammar = "detection/condition.pest"]
 pub struct ConditionParser;
 
 lazy_static::lazy_static! {
@@ -22,6 +27,7 @@ lazy_static::lazy_static! {
     };
 }
 
+/// Represents a node in the condition abstract syntax tree (AST).
 #[derive(Debug, PartialEq, Clone)]
 enum ConditionNode {
     Identifier(String),
@@ -34,12 +40,14 @@ enum ConditionNode {
     },
 }
 
+/// Represents a boolean operator in a condition.
 #[derive(Debug, PartialEq, Clone)]
 pub enum BoolOp {
     Or,
     And,
 }
 
+/// Represents the type of an XOf condition.
 #[derive(Debug, PartialEq, Clone)]
 pub enum XOfType {
     NOf(i64),
@@ -47,6 +55,7 @@ pub enum XOfType {
 }
 
 impl ConditionNode {
+    /// Parses a condition string into a `ConditionNode`.
     pub fn from_str(input: &str) -> Result<ConditionNode, Box<dyn std::error::Error>> {
         let parsed = ConditionParser::parse(Rule::expr, input)?;
         ConditionNode::parse(parsed)
@@ -104,40 +113,67 @@ impl ConditionNode {
     }
 }
 
-fn eval(statement: &HashMap<&String, bool>, begin: &ConditionNode) -> bool {
+/// Evaluates a condition node against a statement.
+fn is_match(statement: &HashMap<&String, bool>, begin: &ConditionNode) -> bool {
     match begin {
         ConditionNode::Identifier(id) => *(statement.get(id).unwrap_or(&false)),
-        ConditionNode::Not(inner) => !eval(statement, inner),
-        ConditionNode::XOf(xoftype, _inner) => {
-            match xoftype {
-                XOfType::NOf(_n) => {
-                    //inner.iter().filter(|i| eval(statement, i)).count() as i64 == n
-                    false
-                }
-                XOfType::AllOf() => {
-                    //inner.iter().all(|i| eval(statement, i))
+        ConditionNode::Not(inner) => !is_match(statement, inner),
+        ConditionNode::XOf(xoftype, inner) => match xoftype {
+            XOfType::NOf(n) => {
+                if let ConditionNode::Identifier(id) = inner.as_ref() {
+                    glob::Pattern::new(id)
+                        .and_then(|pattern| {
+                            Ok(statement
+                                .keys()
+                                .filter(|k| {
+                                    pattern.matches(*k)
+                                        && statement.get(*k).copied().unwrap_or(false)
+                                })
+                                .count() as i64
+                                >= *n)
+                        })
+                        .unwrap_or(false)
+                } else {
                     false
                 }
             }
-        }
+            XOfType::AllOf() => {
+                if let ConditionNode::Identifier(id) = inner.as_ref() {
+                    glob::Pattern::new(id)
+                        .and_then(|pattern| {
+                            Ok(statement
+                                .keys()
+                                .filter(|k| pattern.matches(*k))
+                                .all(|k| statement.get(k).copied().unwrap_or(false)))
+                        })
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            }
+        },
         ConditionNode::BoolOp { lhs, op, rhs } => match op {
-            BoolOp::Or => eval(statement, lhs) || eval(statement, rhs),
-            BoolOp::And => eval(statement, lhs) && eval(statement, rhs),
+            BoolOp::Or => is_match(statement, lhs) || is_match(statement, rhs),
+            BoolOp::And => is_match(statement, lhs) && is_match(statement, rhs),
         },
     }
 }
 
+/// Represents a condition in a Sigma rule.
 #[derive(Debug)]
 pub struct Condition {
     ast: ConditionNode,
 }
 
 impl Condition {
+    /// Creates a new `Condition` from a string input.
     pub fn new(input: &str) -> Result<Condition, Box<dyn std::error::Error>> {
         let parsed = ConditionNode::from_str(input)?;
         Ok(Condition { ast: parsed })
     }
-    pub fn eval(&self, statement: &HashMap<&String, bool>) -> bool {
-        eval(statement, &self.ast)
+
+    /// Evaluates the condition against a statement.
+    pub fn is_match(&self, statement: &HashMap<&String, bool>) -> bool {
+        is_match(statement, &self.ast)
     }
 }

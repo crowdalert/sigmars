@@ -1,20 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
-use super::Detection;
 use chrono::prelude::*;
+use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
 use serde::{self, Deserialize, Serialize};
 use serde_json::Value;
-use serde_yml;
+use std::fmt;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LogSource {
-    pub category: Option<String>,
-    pub product: Option<String>,
-    pub service: Option<String>,
-    #[serde(flatten)]
-    pub extra: HashMap<String, serde_json::Value>,
-}
+use crate::detection::DetectionRule;
 
+#[cfg(feature = "correlation")]
+use crate::correlation::CorrelationRule;
+
+#[doc(hidden)]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
@@ -25,9 +22,31 @@ pub enum Status {
     Unsupported,
 }
 
+impl From<&str> for Status {
+    fn from(s: &str) -> Self {
+        match s {
+            "stable" => Status::Stable,
+            "test" => Status::Test,
+            "experimental" => Status::Experimental,
+            "deprecated" => Status::Deprecated,
+            "unsupported" => Status::Unsupported,
+            _ => Status::Unsupported,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum RuleType {
+    Detection(DetectionRule),
+    Correlation(CorrelationRule),
+}
+
+/// a single Sigma rule (detection or correlation)
+/// fields are described by the [Sigma specification](https://github.com/SigmaHQ/sigma-specification)
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub struct Rule {
+pub struct SigmaRule {
     pub title: String,
     pub id: String,
     pub name: Option<String>,
@@ -39,34 +58,24 @@ pub struct Rule {
     pub status: Option<Status>,
     pub license: Option<String>,
     pub tags: Option<Vec<String>>,
-    pub logsource: LogSource,
-    pub detection: serde_yml::Value,
     pub scope: Option<String>,
     pub fields: Option<Vec<String>>,
     pub falsepositives: Option<Vec<String>>,
     pub level: Option<String>,
     #[serde(flatten)]
+    pub(crate) rule: RuleType,
+    #[doc(hidden)]
+    #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
-    #[serde(skip)]
-    compiled: Detection,
 }
 
-impl Rule {
-    pub fn eval(&self, log: &Value) -> bool {
-        self.compiled.eval(log)
-    }
+/// A convenience function to convert a Sigma rule an [OCSF](https://ocsf.io) Detection Finding
+/// (as JSON)
+impl From<&SigmaRule> for Value {
+    fn from(rule: &SigmaRule) -> Value {
+        let time = Utc::now().timestamp_millis();
 
-    pub fn as_ocsf(&self, metadata: &HashMap<String, Value>) -> Value {
-        let time = match metadata
-            .get("timestamp")
-            .and_then(|v| v.as_str())
-            .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
-        {
-            Some(timestamp) => timestamp.timestamp_millis(),
-            None => Utc::now().timestamp_millis(),
-        };
-
-        let severity_id = match self.level {
+        let severity_id = match rule.level {
             Some(ref level) => match level.as_str() {
                 "informational" => 1,
                 "low" => 2,
@@ -93,13 +102,13 @@ impl Rule {
           "metadata": {
             "version": "1.3.0",
             "product": {
-              "vendor_name": "Crowdalert",
-              "name": "StrIEM"
+              "vendor_name": "sigmars",
+              "name": "sigmars"
             }
           },
           "finding_info": {
-            "title": self.title,
-            "uid": self.id,
+            "title": rule.title,
+            "uid": rule.id,
             "analytic": {
               "type_id": 1,
               "type": "Rule"
@@ -108,73 +117,127 @@ impl Rule {
           "severity_id": severity_id,
         });
 
-        match self.level {
+        match rule.level {
             Some(ref level) => value["severity"] = level.clone().into(),
             None => {}
         };
 
-        match metadata.get("correlation_uid") {
-            Some(correlation_uid) => {
-                value["metadata"]["correlation_uid"] = correlation_uid.clone();
-            }
-            None => {}
-        };
         value
     }
 }
 
-impl<'de> Deserialize<'de> for Rule {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+impl PartialEq for SigmaRule {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for SigmaRule {}
+
+impl Hash for SigmaRule {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+struct SigmaRuleSeed;
+
+impl<'de> DeserializeSeed<'de> for SigmaRuleSeed {
+    type Value = SigmaRule;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<SigmaRule, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(SigmaRuleVisitor)
+    }
+}
+
+struct SigmaRuleVisitor;
+
+impl<'de> Visitor<'de> for SigmaRuleVisitor {
+    type Value = SigmaRule;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a Sigma rule")
+    }
+
+    fn visit_map<V>(self, mut map: V) -> Result<SigmaRule, V::Error>
+    where
+        V: serde::de::MapAccess<'de>,
     {
         #[derive(Deserialize)]
-        struct RuleWrapper {
-            title: String,
-            id: String,
-            name: Option<String>,
-            description: Option<String>,
-            references: Option<Vec<String>>,
-            author: Option<String>,
-            date: Option<String>,
-            modified: Option<String>,
-            status: Option<Status>,
-            license: Option<String>,
-            tags: Option<Vec<String>>,
-            logsource: LogSource,
-            detection: serde_yml::Value,
-            scope: Option<String>,
-            fields: Option<Vec<String>>,
-            falsepositives: Option<Vec<String>>,
-            level: Option<String>,
+        struct SigmaRuleHelper {
+            pub title: String,
+            pub id: String,
+            pub name: Option<String>,
+            pub description: Option<String>,
+            pub references: Option<Vec<String>>,
+            pub author: Option<String>,
+            pub date: Option<String>,
+            pub modified: Option<String>,
+            pub status: Option<Status>,
+            pub license: Option<String>,
+            pub tags: Option<Vec<String>>,
+            pub scope: Option<String>,
+            pub fields: Option<Vec<String>>,
+            pub falsepositives: Option<Vec<String>>,
+            pub level: Option<String>,
             #[serde(flatten)]
-            extra: HashMap<String, serde_json::Value>,
+            pub rule: RuleType,
+            #[serde(flatten)]
+            pub extra: HashMap<String, serde_json::Value>,
         }
 
-        let rule = RuleWrapper::deserialize(deserializer)?;
+        let mut helper =
+            SigmaRuleHelper::deserialize(de::value::MapAccessDeserializer::new(&mut map))?;
 
-        let compiled = Detection::new(&rule.detection).map_err(serde::de::Error::custom)?;
+        if let RuleType::Correlation(ref mut rule) = helper.rule {
+            rule.inner.id = helper.id.clone();
+        }
 
-        Ok(Rule {
-            title: rule.title,
-            id: rule.id,
-            name: rule.name,
-            description: rule.description,
-            references: rule.references,
-            author: rule.author,
-            date: rule.date,
-            modified: rule.modified,
-            status: rule.status,
-            license: rule.license,
-            tags: rule.tags,
-            logsource: rule.logsource,
-            detection: rule.detection,
-            scope: rule.scope,
-            fields: rule.fields,
-            falsepositives: rule.falsepositives,
-            level: rule.level,
-            extra: rule.extra,
-            compiled,
+        Ok(SigmaRule {
+            title: helper.title,
+            id: helper.id,
+            name: helper.name,
+            description: helper.description,
+            references: helper.references,
+            author: helper.author,
+            date: helper.date,
+            modified: helper.modified,
+            status: helper.status,
+            license: helper.license,
+            tags: helper.tags,
+            scope: helper.scope,
+            fields: helper.fields,
+            falsepositives: helper.falsepositives,
+            level: helper.level,
+            rule: helper.rule,
+            extra: helper.extra,
         })
     }
+}
+
+impl<'de> Deserialize<'de> for SigmaRule {
+    fn deserialize<D>(deserializer: D) -> Result<SigmaRule, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        SigmaRuleSeed.deserialize(deserializer)
+    }
+}
+
+#[cfg(not(feature = "correlation"))]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Correlation {
+    #[serde(skip)]
+    pub id: String,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_yml::Value>,
+}
+#[cfg(not(feature = "correlation"))]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CorrelationRule {
+    #[serde(rename = "correlation")]
+    pub inner: Correlation,
 }

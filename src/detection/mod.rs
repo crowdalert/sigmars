@@ -1,5 +1,8 @@
 mod condition;
-mod detection;
+mod rule;
 mod selection;
 
-pub use detection::Detection;
+pub(crate) mod detection;
+pub mod filter;
+
+pub use rule::DetectionRule;

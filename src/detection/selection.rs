@@ -276,7 +276,7 @@ impl Selection {
         Ok(Selection { items })
     }
 
-    pub fn eval(&self, log: &JsonValue) -> bool {
+    pub fn is_match(&self, log: &JsonValue) -> bool {
         self.items.iter().all(|item| match item {
             MatchType::Exact(s) => log
                 .as_str()
