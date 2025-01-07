@@ -1,3 +1,4 @@
 /target
 **/src/proto/*
 !*/src/proto/mod.rs
+Cargo.lock
