@@ -241,3 +241,10 @@ pub struct CorrelationRule {
     #[serde(rename = "correlation")]
     pub inner: Correlation,
 }
+
+#[cfg(not(feature = "correlation"))]
+impl CorrelationRule {
+    pub fn rules(&self) -> Vec<String> {
+        vec![]
+    }
+}

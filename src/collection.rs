@@ -1,5 +1,8 @@
 use crate::detection::filter::Filter;
-use crate::{correlation, event::Event};
+use crate::event::Event;
+
+#[cfg(feature = "correlation")]
+use crate::correlation;
 
 use petgraph::{graph, Directed, Graph};
 use serde::Deserialize;
