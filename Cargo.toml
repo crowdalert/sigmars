@@ -11,7 +11,7 @@ description = "A library for sigmahq rule collections"
 
 [features]
 default = ["correlation", "mem_backend"]
-correlation = ["dep:tokio", "dep:tokio-util", "dep:futures-util"]
+correlation = ["dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:async-trait" ]
 mem_backend = []
 
 [dependencies]
@@ -33,4 +33,4 @@ petgraph = "0.6.5"
 uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }
 thiserror = "2.0.8"
 anyhow = "1.0.94"
-async-trait = "0.1.83"
+async-trait = { version = "0.1.83", optional = true}

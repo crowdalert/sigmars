@@ -4,68 +4,43 @@ Sigmars is a Rust library for working with Sigma rules, which are used for descr
 
 ## Features
 
-- Evaluates Sigma rules against serde_json::Value
-- Manage collections of Sigma rules (similar to pySigma)
+- Manage collections of Sigma rules (similar to [pySigma](https://sigmahq-pysigma.readthedocs.io/en/latest/))
 - supports all Sigma 2.0 condition modifiers including fieldref
-- supports the full Sigma condition syntax as a pest Pratt grammar
+- supports the full Sigma condition syntax (as a [pest](https://crates.io/crates/pest) Pratt grammar)
+- supports correlation rules ()
 
 ## Usage
 
+As a collection of simple detections:
+
 ```rust
-use sigmars::Detection;
-use serde_json::json;
-use serde_yml::from_str;
-
-fn main() {
-    let detection_rule = r#"
-    selection:
-        foo: bar
-    condition: selection
-    "#;
-
-    let detection = Detection::new(&from_str::<serde_yml::Value>(detection_rule).unwrap()).unwrap();
-
-    let log = json!({
-        "foo": "bar"
-    });
-
-    assert_eq!(detection.eval(&log), true);
+use std::error::Error;
+use sigmars::{Event, SigmaCollection};
+fn main() -> Result<(), Box<dyn Error>> {
+  let rules: SigmaCollection = SigmaCollection::new_from_dir("/path/to/sigma/rules/");
+  let log = json!({"foo": "bar"});
+  let matches = rules.get_detection_matches(&event.into());
+  ...
 }
 ```
-or to load a full collection:
+
+or with correlations (requires tokio) using an in-memory backend
 
 ```rust
-use sigmars::{Collection, Event, Rule};
-use serde_json::json;
+use std::error::Error;
+use tokio;
+use sigmars::{Event, MemBackend, SigmaCollection};
 
-fn main() {
-    let mut collection = Collection::default();
-    collection::load_ruleset("/path/to/detections").unwrap();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+  let rules: SigmaCollection = SigmaCollection::new_from_dir("/path/to/sigma/rules/");
 
-    let log = json!({
-        "foo": "bar"
-    });
+  let mut backend = MemBackend::new().await;
+  rules.init(&mut backend);
 
-    // evaluate all rules against a json value
-    let all_matches: Vec<&Rule> = collection.eval_json(log);
-    ...
-
-    // or only evaluate rules that match a logsource
-    let metadata = HashMap::from([
-        ("logsource".to_string(), json!({"product": "aws", "service": "cloudtrail"}))
-    ]);
-
-    let log = json!({
-        "eventVersion" : "1.08",
-        "eventCategory" : "Management",
-        "etc": "..."
-    });
-
-    let event = Event::new(log, metadata);
-
-    let filtered_matches = collection.eval(event);
-    ...
-
+  let log = json!({"foo": "bar"});
+  let matches = rules.get_matches(&event.into()).await?;
+  ...
 }
 ```
 
