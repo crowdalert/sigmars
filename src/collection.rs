@@ -1,4 +1,4 @@
-use crate::detection::filter::Filter;
+use crate::{detection::filter::Filter, event::LogSource};
 use crate::event::Event;
 
 #[cfg(feature = "correlation")]
@@ -6,6 +6,7 @@ use crate::correlation;
 
 use petgraph::{graph, Directed, Graph};
 use serde::Deserialize;
+use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
@@ -165,6 +166,22 @@ impl SigmaCollection {
             .filter(|rule| {
                 if let RuleType::Detection(ref d) = rule.rule {
                     d.is_match(&event.data)
+                } else {
+                    false
+                }
+            })
+            .map(|rule| rule.id.clone())
+            .collect()
+    }
+
+    pub fn get_value_detection_matches(&self, data: &Value, filter: &LogSource) -> Vec<String> {
+        self.filters
+            .filter(filter)
+            .iter()
+            .filter_map(|id| self.rules.get(id))
+            .filter(|rule| {
+                if let RuleType::Detection(ref d) = rule.rule {
+                    d.is_match(&data)
                 } else {
                     false
                 }
