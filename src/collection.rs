@@ -1,12 +1,11 @@
-use crate::{detection::filter::Filter, event::LogSource};
-use crate::event::Event;
+use crate::detection::filter::Filter;
+use crate::event::{RefEvent, Event};
 
 #[cfg(feature = "correlation")]
 use crate::correlation;
 
 use petgraph::{graph, Directed, Graph};
 use serde::Deserialize;
-use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
@@ -159,6 +158,10 @@ impl SigmaCollection {
     /// # }
     /// 
     pub fn get_detection_matches(&self, event: &Event) -> Vec<String> {
+        self.get_detection_matches_from_ref(&event.into())
+    }
+
+    pub fn get_detection_matches_from_ref(&self, event: &RefEvent) -> Vec<String> {
         self.filters
             .filter(&event.logsource)
             .iter()
@@ -166,22 +169,6 @@ impl SigmaCollection {
             .filter(|rule| {
                 if let RuleType::Detection(ref d) = rule.rule {
                     d.is_match(&event.data)
-                } else {
-                    false
-                }
-            })
-            .map(|rule| rule.id.clone())
-            .collect()
-    }
-
-    pub fn get_value_detection_matches(&self, data: &Value, filter: &LogSource) -> Vec<String> {
-        self.filters
-            .filter(filter)
-            .iter()
-            .filter_map(|id| self.rules.get(id))
-            .filter(|rule| {
-                if let RuleType::Detection(ref d) = rule.rule {
-                    d.is_match(&data)
                 } else {
                     false
                 }
@@ -348,7 +335,14 @@ impl SigmaCollection {
         &self,
         event: &Event,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let mut prior = self.get_detection_matches(event);
+        self.get_matches_from_ref(&event.into()).await
+    }
+
+    pub async fn get_matches_from_ref<'r>(
+        &self,
+        event: &RefEvent<'r>,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let mut prior = self.get_detection_matches_from_ref(&event);
         self.push_correlation_matches(event, &mut prior).await?;
         Ok(prior)
     }
@@ -363,15 +357,15 @@ impl SigmaCollection {
         event: &Event,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let mut prior = self.get_detection_matches_unfiltered(event);
-        self.push_correlation_matches(event, &mut prior).await?;
+        self.push_correlation_matches(&(event).into(), &mut prior).await?;
         Ok(prior)
     }
 
     /// apply correlation rules to an event and a list of matching detection rule IDs
     /// correlation rule ID's are appended to the list of prior matches
-    pub async fn push_correlation_matches(
+    pub async fn push_correlation_matches<'r>(
         &self,
-        event: &Event,
+        event: &RefEvent<'r>,
         prior: &mut Vec<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let rules = self
@@ -392,7 +386,7 @@ impl SigmaCollection {
 
         for rule in rules {
             if let RuleType::Correlation(ref correlation) = rule.rule {
-                if correlation.is_match(event, prior).await? {
+                if correlation.is_match(&event, prior).await? {
                     prior.push(rule.id.clone());
                 }
             }
