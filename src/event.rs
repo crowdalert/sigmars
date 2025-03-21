@@ -143,18 +143,19 @@ impl From<Value> for Event {
     }
 }
 
+#[derive(Clone)]
 pub struct RefEvent<'a> {
     pub data: &'a Value,
-    pub logsource: &'a LogSource,
     pub metadata: &'a HashMap<String, Value>,
+    pub logsource: LogSource,
 }
 
 impl<'a> From<&'a Event> for RefEvent<'a> {
     fn from(event: &'a Event) -> Self {
         RefEvent {
             data: &event.data,
-            logsource: &event.logsource,
             metadata: &event.metadata,
+            logsource: event.logsource.clone(),
         }
     }
 }
