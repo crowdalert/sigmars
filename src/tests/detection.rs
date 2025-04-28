@@ -327,7 +327,7 @@ fn test_gt() {
 fn test_regex() {
     let detection = r#"
         selection:
-            foo|regex: ^[a-z]+$
+            foo|re: ^[a-z]+$
         condition: selection
         "#;
 
@@ -344,7 +344,7 @@ fn test_regex() {
 fn test_regex_is_case_sensitive() {
     let detection = r#"
         selection:
-            foo|regex: ^[a-z]+$
+            foo|re: ^[a-z]+$
         condition: selection
         "#;
 
@@ -361,7 +361,7 @@ fn test_regex_is_case_sensitive() {
 fn test_case_insensitive_regex() {
     let detection = r#"
         selection:
-            foo|regex|i: ^[a-z]+$
+            foo|re|i: ^[a-z]+$
         condition: selection
         "#;
 
@@ -378,7 +378,7 @@ fn test_case_insensitive_regex() {
 fn test_regex_invalid_modifier() {
     let detection = r#"
         selection:
-            foo|regex|q: ^[a-z]+$
+            foo|re|q: ^[a-z]+$
         condition: selection
         "#;
 
