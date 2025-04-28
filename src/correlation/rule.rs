@@ -4,12 +4,12 @@ use super::{
     serde::{ConditionOrList, Correlation, CorrelationRule, CorrelationType},
     state,
 };
-use crate::event::Event;
+use crate::event::RefEvent;
 
 impl Correlation {
     async fn is_match(
         &self,
-        event: &Event,
+        event: &RefEvent<'_>,
         prior: &Vec<String>,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         let hashed = prior.iter().map(|r| r).collect::<HashSet<_>>();
@@ -105,7 +105,7 @@ impl CorrelationRule {
 
     pub async fn is_match(
         &self,
-        event: &Event,
+        event: &RefEvent<'_>,
         prior: &Vec<String>,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         self.inner.is_match(event, prior).await

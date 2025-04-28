@@ -47,7 +47,7 @@ impl Into<(String, Option<String>)> for &Key {
 /// `RuleState` is a property of the individual rule and the `RuleState` trait
 /// implementation becomes an attribute of the `CorrelationRule`
 #[async_trait]
-pub trait RuleState: Send {
+pub trait RuleState: Send + Sync {
     async fn incr(&self, _: &Key) -> u64;
     async fn count(&self, _: &Key) -> u64;
 }
