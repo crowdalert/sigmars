@@ -9,7 +9,7 @@ pub struct Detection {
 }
 
 impl Detection {
-    pub fn new(detection: &serde_yml::Value) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(detection: &serde_yaml::Value) -> Result<Self, Box<dyn std::error::Error>> {
         let mut detection = detection.clone();
         let rules = detection
             .as_mapping_mut()

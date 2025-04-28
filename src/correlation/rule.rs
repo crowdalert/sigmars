@@ -29,61 +29,74 @@ impl Correlation {
 
         Ok(match self.correlation_type {
             CorrelationType::EventCount(ref c) => {
-
                 if !self.rules.iter().all(|d| hashed.contains(d)) {
                     return Ok(false);
                 };
                 let count = state.incr(&state::Key::EventCount(group_by)).await as i64;
                 match &c.condition {
                     ConditionOrList::Condition(c) => c.is_match(count),
-                    ConditionOrList::List(conditions) => conditions.iter().all(|c| c.is_match(count)),
+                    ConditionOrList::List(conditions) => {
+                        conditions.iter().all(|c| c.is_match(count))
+                    }
                 }
-            },
+            }
             CorrelationType::ValueCount(ref c) => {
-
                 if !self.rules.iter().all(|d| hashed.contains(d)) {
                     return Ok(false);
                 };
                 if let Some(field_value) = event.data.get(&c.condition.field) {
-                    let count = state.incr(
-                    &state::Key::ValueCount(
-                        group_by,
-                        format!("{}:{}", c.condition.field, field_value),
-                    )).await as i64;
+                    let count = state
+                        .incr(&state::Key::ValueCount(
+                            group_by,
+                            format!("{}:{}", c.condition.field, field_value),
+                        ))
+                        .await as i64;
                     c.condition.condition.is_match(count)
-                } else { false }
-            },
+                } else {
+                    false
+                }
+            }
             CorrelationType::Temporal => {
                 let mut ret = true;
                 for r in self
-                .rules
-                .iter()
-                .map(|r| async {
-                    if hashed.contains(r) {
-                        state.incr(&state::Key::ValueCount(group_by.clone(), r.clone())).await
-                    } else { 
-                        state.count(&state::Key::ValueCount(group_by.clone(), r.clone())).await
-                    }
-                })
-                .collect::<Vec<_>>() {
+                    .rules
+                    .iter()
+                    .map(|r| async {
+                        if hashed.contains(r) {
+                            state
+                                .incr(&state::Key::ValueCount(group_by.clone(), r.clone()))
+                                .await
+                        } else {
+                            state
+                                .count(&state::Key::ValueCount(group_by.clone(), r.clone()))
+                                .await
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                {
                     if r.await == 0 {
                         ret = false;
                     }
                 }
                 ret
-            },
+            }
             CorrelationType::TemporalOrdered => {
                 for r in self
-                .rules
-                .iter()
-                .map(|r| async {
-                    if hashed.contains(r) {
-                        state.incr(&state::Key::ValueCount(group_by.clone(), r.clone())).await
-                    } else { 
-                        state.count(&state::Key::ValueCount(group_by.clone(), r.clone())).await
-                    }
-                })
-                .collect::<Vec<_>>() {
+                    .rules
+                    .iter()
+                    .map(|r| async {
+                        if hashed.contains(r) {
+                            state
+                                .incr(&state::Key::ValueCount(group_by.clone(), r.clone()))
+                                .await
+                        } else {
+                            state
+                                .count(&state::Key::ValueCount(group_by.clone(), r.clone()))
+                                .await
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                {
                     if r.await == 0 {
                         return Ok(false);
                     }

@@ -1,7 +1,10 @@
 use serde_json::json;
 use tokio::test;
 
-use crate::{collection::*, event::{Event, LogSource}};
+use crate::{
+    collection::*,
+    event::{Event, LogSource},
+};
 use std::collections::HashMap;
 
 pub static COLLECTION: &str = r#"
@@ -114,7 +117,6 @@ async fn test_event_count_no_matching_groupby() {
 
 #[test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_event_count_no_groupby() {
-    
     let mut backend = crate::correlation::state::mem::MemBackend::new().await;
     let mut collection: SigmaCollection = COLLECTION.parse().unwrap();
     collection.init(&mut backend).await;
@@ -201,7 +203,6 @@ async fn test_value_count_unmatched_groupby() {
 
     assert!(res.len() == 1);
 }
-
 
 #[test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_temporal() {

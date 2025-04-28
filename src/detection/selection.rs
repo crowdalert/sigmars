@@ -1,7 +1,7 @@
 use cidr;
 use regex::{Regex, RegexBuilder};
 use serde_json::{json, Value as JsonValue};
-use serde_yml::Value as YamlValue;
+use serde_yaml::Value as YamlValue;
 use std::{net::IpAddr, str::FromStr};
 
 use serde::{Deserialize, Serialize};
@@ -190,6 +190,7 @@ impl Field {
         };
 
         let values: Vec<JsonValue> = match value {
+            YamlValue::Null => vec![JsonValue::Null],
             YamlValue::String(s) => vec![JsonValue::String(s.clone())],
             YamlValue::Number(n) => vec![n.as_i64().map_or_else(
                 || n.as_f64().map_or_else(|| JsonValue::Null, |f| json!(f)),
@@ -316,6 +317,7 @@ impl Selection {
                             Some(&JsonValue::Number(ref logvalue)) => {
                                 value.as_number().map_or_else(|| false, |v| logvalue == v)
                             }
+                            None => value.is_null(),
                             _ => false,
                         }
                     }),

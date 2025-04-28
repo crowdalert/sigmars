@@ -1,6 +1,6 @@
 use serde::{self, Deserialize, Serialize};
 use serde_json::Value;
-use serde_yml;
+use serde_yaml;
 
 use super::detection::Detection;
 use crate::event::LogSource;
@@ -10,7 +10,7 @@ use crate::event::LogSource;
 pub struct DetectionRule {
     /// The log source information for the detection rule.
     pub logsource: LogSource,
-    pub detection: serde_yml::Value,
+    pub detection: serde_yaml::Value,
     #[serde(skip)]
     compiled: Detection,
 }
@@ -29,7 +29,7 @@ impl<'de> Deserialize<'de> for DetectionRule {
         #[derive(Deserialize)]
         struct RuleHelper {
             logsource: LogSource,
-            detection: serde_yml::Value,
+            detection: serde_yaml::Value,
         }
         // Deserialize the detection rule from the deserializer
         let rule = RuleHelper::deserialize(deserializer)?;

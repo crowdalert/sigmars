@@ -113,7 +113,6 @@ detection:
           - 'C:\Program Files(x86)\Google\GoogleUpdate.exe'
     condition: selection"#;
 
-
 #[test]
 fn test_collection() {
     let collection: SigmaCollection = COLLECTION.parse().unwrap();
