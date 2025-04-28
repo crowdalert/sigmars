@@ -22,7 +22,7 @@ lazy_static = "1.5.0"
 regex = "1.11.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yml = "0"
+serde_yaml = "0"
 tokio = { version = "1.41.0", features = ["full"], optional = true }
 tokio-util = { version = "0.7.12", features = ["full"], optional = true }
 
@@ -34,3 +34,4 @@ uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }
 thiserror = "2.0.8"
 anyhow = "1.0.94"
 async-trait = { version = "0.1.83", optional = true}
+log = "0.4.27"

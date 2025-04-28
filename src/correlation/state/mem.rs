@@ -5,8 +5,8 @@ use futures_util::StreamExt;
 use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
+    mpsc::{self, Receiver, Sender},
     RwLock,
-    mpsc::{self, Receiver, Sender}
 };
 
 use tokio_util::time::delay_queue::DelayQueue;
@@ -16,7 +16,7 @@ type BackendMap = Arc<RwLock<HashMap<String, HashMap<String, HashMap<Option<Stri
 pub struct MemBackendImpl {
     map: BackendMap,
     tx: Sender<(String, Key, Duration)>,
-    task: tokio::task::JoinHandle<()>
+    task: tokio::task::JoinHandle<()>,
 }
 
 impl MemBackendImpl {
@@ -25,17 +25,15 @@ impl MemBackendImpl {
         let (tx, rx) = mpsc::channel::<(String, Key, Duration)>(16);
         let task = Self::start(rx, &map).await;
 
-        MemBackendImpl {
-            map,
-            tx,
-            task
-        }
+        MemBackendImpl { map, tx, task }
     }
 
     pub async fn count(&self, rule_id: &String, key: &Key) -> u64 {
         let (group_by, value) = key.into();
 
-        self.map.read().await
+        self.map
+            .read()
+            .await
             .get(rule_id)
             .map(|m| {
                 m.get(&group_by)
@@ -54,13 +52,14 @@ impl MemBackendImpl {
             .or_insert(HashMap::new())
             .entry(group_by)
             .or_insert(HashMap::new());
-        let count = grouping
-            .entry(value)
-            .or_insert(0);
+        let count = grouping.entry(value).or_insert(0);
 
         *count += 1;
 
-        self.tx.send((rule_id.clone(), key.clone(), timeout)).await.unwrap();
+        self.tx
+            .send((rule_id.clone(), key.clone(), timeout))
+            .await
+            .unwrap();
 
         match key {
             Key::EventCount(_) => *count as u64,
@@ -68,10 +67,13 @@ impl MemBackendImpl {
         }
     }
 
-    async fn start(mut rx: Receiver<(String, Key, Duration)>, map: &BackendMap) -> tokio::task::JoinHandle<()> {
+    async fn start(
+        mut rx: Receiver<(String, Key, Duration)>,
+        map: &BackendMap,
+    ) -> tokio::task::JoinHandle<()> {
         let map = map.clone();
         tokio::spawn(async move {
-            let mut queue  = DelayQueue::<(String, Key)>::new();
+            let mut queue = DelayQueue::<(String, Key)>::new();
             loop {
                 tokio::select! {
                     Some((rule_id, key, timeout)) = rx.recv() => {
@@ -126,7 +128,11 @@ pub struct MemState {
 }
 
 impl MemState {
-    pub async fn new(rule_id: &String, timespan: &Duration, backend: Arc<MemBackendImpl>) -> Result<Self, BackendError> {
+    pub async fn new(
+        rule_id: &String,
+        timespan: &Duration,
+        backend: Arc<MemBackendImpl>,
+    ) -> Result<Self, BackendError> {
         Ok(MemState {
             rule_id: rule_id.clone(),
             timespan: timespan.clone(),
@@ -152,15 +158,11 @@ impl Backend for MemBackend {
         &mut self,
         rule: &mut CorrelationRule,
     ) -> Result<(), Box<dyn std::error::Error>> {
-
         let state = MemState::new(&rule.inner.id, &rule.inner.timespan, self.0.clone()).await?;
 
-        rule.inner
-            .state
-            .set(Box::new(state))
-            .map_err(|_| {
-                BackendError::StateError(format!("{}: state already initialized", rule.inner.id))
-            })?;
+        rule.inner.state.set(Box::new(state)).map_err(|_| {
+            BackendError::StateError(format!("{}: state already initialized", rule.inner.id))
+        })?;
         Ok(())
     }
 }

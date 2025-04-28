@@ -9,7 +9,7 @@ fn test_detection() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "bar"
@@ -27,7 +27,7 @@ fn test_detection_fail() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "baz"
@@ -45,7 +45,7 @@ fn test_detection_nested() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": {
@@ -67,7 +67,7 @@ fn test_detection_list() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "bar"
@@ -86,7 +86,7 @@ fn test_detection_map_is_and() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "bar"
@@ -111,7 +111,7 @@ fn test_modifiers() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "barbaz"
@@ -133,7 +133,7 @@ fn test_wildcards() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "barbaz",
@@ -152,7 +152,7 @@ fn test_invalid_modifiers() {
         condition: selection
         "#;
 
-    let detection = Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap());
+    let detection = Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap());
 
     assert_eq!(detection.is_err(), true);
 }
@@ -166,7 +166,7 @@ fn test_fieldref() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": {
@@ -188,7 +188,7 @@ fn test_cidr() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "10.0.1.2"
@@ -210,7 +210,7 @@ fn test_cidr_to_cidr() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "10.0.1.0/24"
@@ -234,7 +234,7 @@ fn test_all() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": ["bar", "baz"]
@@ -263,7 +263,7 @@ fn test_all_map_implicit() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "test1",
@@ -297,7 +297,7 @@ fn test_numbers() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": 42,
@@ -315,7 +315,7 @@ fn test_gt() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": 56
@@ -332,7 +332,7 @@ fn test_regex() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "bar"
@@ -349,7 +349,7 @@ fn test_regex_is_case_sensitive() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "BAR"
@@ -366,7 +366,7 @@ fn test_case_insensitive_regex() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     let log = serde_json::json!({
         "foo": "BAR"
@@ -382,7 +382,7 @@ fn test_regex_invalid_modifier() {
         condition: selection
         "#;
 
-    let detection = Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap());
+    let detection = Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap());
 
     assert_eq!(detection.is_err(), true);
 }
@@ -402,7 +402,7 @@ fn test_nof() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     assert_eq!(detection.is_match(&log), true);
 
@@ -417,7 +417,7 @@ fn test_nof() {
     "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     assert_eq!(detection.is_match(&log), false);
 
@@ -430,7 +430,7 @@ fn test_nof() {
     "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     assert_eq!(detection.is_match(&log), false);
 }
@@ -451,7 +451,7 @@ fn test_allof() {
         "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     assert_eq!(detection.is_match(&log), true);
 
@@ -464,7 +464,25 @@ fn test_allof() {
     "#;
 
     let detection =
-        Detection::new(&serde_yml::from_str::<serde_yml::Value>(detection).unwrap()).unwrap();
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
 
     assert_eq!(detection.is_match(&log), false);
+}
+
+#[test]
+fn test_null() {
+    let log = serde_json::json!({
+        "foo": "bar"
+    });
+
+    let detection = r#"
+        selection:
+            baz: null
+        condition: selection
+        "#;
+
+    let detection =
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
+
+    assert_eq!(detection.is_match(&log), true);
 }

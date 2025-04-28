@@ -37,13 +37,13 @@ pub enum ConditionOrList {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EventCount {
-    #[serde(with = "serde_yml::with::singleton_map_recursive")]
+    #[serde(with = "serde_yaml::with::singleton_map_recursive")]
     pub condition: ConditionOrList,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ValueCondition {
-    #[serde(with = "serde_yml::with::singleton_map_recursive", flatten)]
+    #[serde(with = "serde_yaml::with::singleton_map_recursive", flatten)]
     pub condition: Condition,
     pub field: String,
 }

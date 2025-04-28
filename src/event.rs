@@ -2,10 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-
 /// Encapsulates log source information from the Sigma
 /// taxonomy
-/// 
+///
 /// implements `From<serde_json::Value>` using
 /// the `category`, `product`, and `service` top level
 /// fields with `String` values (if present)
@@ -44,13 +43,13 @@ impl LogSource {
 }
 
 /// Encapsulates data for a log event
-/// 
+///
 /// includes log source (used to filter Sigma rules),
 /// and additional metadata that can be used for enrichment
-/// 
+///
 /// Implements `From<serde_json::Value>` for easy
 /// construction from JSON.
-/// 
+///
 /// ```rust
 /// # use std::error::Error;
 /// # use serde_json::{json, Value};
@@ -61,20 +60,20 @@ impl LogSource {
 ///                     .logsource(LogSource::default()); // logsource is optional
 ///
 ///  assert_eq!(event.data.get("foo").unwrap(), &json!("bar"));
-/// 
+///
 /// // from JSON
 ///  let mut event: Event = json!({"foo": "bar"}).into();
 ///  event.logsource = LogSource::default().category("linux");
-/// 
+///
 ///  // logsource can also be constructed from JSON
 ///  let mut event: Event = json!({"foo": "bar"}).into();
 ///  event.logsource = json!({ "category": "linux" }).into();
 ///  assert_eq!(event.logsource.category, Some("linux".to_string()));
-/// 
+///
 ///  // metadata can be added to the event
 ///  event.metadata.insert("environment".to_string(), json!("prod"));
 ///  assert_eq!(event.metadata.get("environment"), Some(&json!("prod")));
-/// 
+///
 /// #   Ok(())
 /// # }
 /// ```
