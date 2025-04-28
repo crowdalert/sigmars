@@ -161,7 +161,7 @@ impl Field {
         let mut modifiers = Vec::new();
 
         match key_modifiers.next() {
-            Some("regex") => {
+            Some("re") => {
                 let re = value
                     .as_str()
                     .map(|re| RegexBuilder::new(re))
