@@ -15,11 +15,13 @@ As a collection of simple detections:
 
 ```rust
 use std::error::Error;
-use sigmars::{Event, SigmaCollection};
+use serde_json::json;
+use sigmars::SigmaCollection;
+
 fn main() -> Result<(), Box<dyn Error>> {
-  let rules: SigmaCollection = SigmaCollection::new_from_dir("/path/to/sigma/rules/");
-  let log = json!({"foo": "bar"});
-  let matches = rules.get_detection_matches(&event.into());
+    let rules: SigmaCollection = SigmaCollection::new_from_dir("/path/to/sigma/rules/").unwrap();
+    let event = json!({"foo": "bar"});
+    let matches = rules.get_detection_matches(&event.into());
   ...
 }
 ```
@@ -28,18 +30,19 @@ or with correlations (requires tokio) using an in-memory backend
 
 ```rust
 use std::error::Error;
+use serde_json::json;
 use tokio;
-use sigmars::{Event, MemBackend, SigmaCollection};
+use sigmars::{MemBackend, SigmaCollection};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-  let rules: SigmaCollection = SigmaCollection::new_from_dir("/path/to/sigma/rules/");
+    let mut rules: SigmaCollection = SigmaCollection::new_from_dir("/path/to/sigma/rules/").unwrap();
 
-  let mut backend = MemBackend::new().await;
-  rules.init(&mut backend);
+    let mut backend = MemBackend::new().await;
+    rules.init(&mut backend).await;
 
-  let log = json!({"foo": "bar"});
-  let matches = rules.get_matches(&event.into()).await?;
+    let event = json!({"foo": "bar"});
+    let matches = rules.get_matches(&event.into()).await?;
   ...
 }
 ```
