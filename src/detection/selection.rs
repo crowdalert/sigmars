@@ -324,12 +324,13 @@ impl Selection {
 
                     _ => f.modifiers.iter().all(|modifier| match &f.values.len() {
                         0 => false,
-                        1 => f
-                            .values
-                            .iter()
-                            .next()
-                            .map_or_else(|| false, |v| modifier.eval(&f.key, v, &log)),
-                        _ => modifier.eval(&f.key, &json!(&f.values), &log),
+                        _ => {
+                            if matches!(modifier, Modifier::All) {
+                                modifier.eval(&f.key, &json!(&f.values), &log)
+                            } else {
+                                f.values.iter().any(|v| modifier.eval(&f.key, v, &log))
+                            }
+                        }
                     }),
                 }
             }
