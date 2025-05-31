@@ -121,6 +121,46 @@ fn test_modifiers() {
 }
 
 #[test]
+fn test_modifiers_list() {
+    let detection = r#"
+        selection:
+            foo|contains: 
+                - foo
+                - bar
+        condition: selection
+        "#;
+
+    let detection =
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
+
+    let log = serde_json::json!({
+        "foo": "barbaz"
+    });
+
+    assert_eq!(detection.is_match(&log), true);
+}
+
+#[test]
+fn test_modifiers_list_fail() {
+    let detection = r#"
+        selection:
+            foo|contains: 
+                - foo
+                - bar
+        condition: selection
+        "#;
+
+    let detection =
+        Detection::new(&serde_yaml::from_str::<serde_yaml::Value>(detection).unwrap()).unwrap();
+
+    let log = serde_json::json!({
+        "foo": "notmatch"
+    });
+
+    assert_eq!(detection.is_match(&log), false);
+}
+
+#[test]
 fn test_wildcards() {
     let detection = r#"
         selection1:
