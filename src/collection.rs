@@ -6,7 +6,7 @@ use crate::correlation;
 
 use log::warn;
 use petgraph::{graph, Directed, Graph};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, str::FromStr};
 use thiserror::Error;
 
@@ -88,6 +88,10 @@ impl SigmaCollection {
     ) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
         let newrules: Vec<SigmaRule> = glob::glob(format!("{}/**/*.yml", path).as_str())?
             .into_iter()
+            .chain(
+                glob::glob(format!("{}/**/*.yaml", path).as_str())?
+                    .into_iter(),
+            )
             .flatten()
             .filter_map(|entry| {
                 std::fs::read_to_string(&entry)
@@ -318,7 +322,7 @@ impl SigmaCollection {
     pub async fn init(&mut self, backend: &mut impl correlation::Backend) {
         for rule in self.rules.values_mut() {
             if let RuleType::Correlation(ref mut corr) = rule.rule {
-                backend.register(corr).await.unwrap();
+                backend.register(corr).await.expect("Failed to register correlation rule");
             }
         }
     }
@@ -432,5 +436,15 @@ impl ToString for SigmaCollection {
             .filter_map(|rule| serde_yaml::to_string(rule).ok())
             .collect::<Vec<String>>()
             .join("---\n")
+    }
+}
+
+impl Serialize for SigmaCollection {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let rules: Vec<&SigmaRule> = self.rules.values().collect();
+        rules.serialize(serializer)
     }
 }

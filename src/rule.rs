@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, hash::Hash};
 
 use chrono::prelude::*;
@@ -12,7 +13,7 @@ use crate::detection::DetectionRule;
 use crate::correlation::CorrelationRule;
 
 #[doc(hidden)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
     Stable,
@@ -65,8 +66,25 @@ pub struct SigmaRule {
     #[serde(flatten)]
     pub(crate) rule: RuleType,
     #[doc(hidden)]
+    pub enabled: AtomicBool,
+    #[doc(hidden)]
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
+}
+
+impl SigmaRule {
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+    pub fn enable(&self) {
+        self.enabled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub fn disable(&self) {
+        self.enabled
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 /// A convenience function to convert a Sigma rule an [OCSF](https://ocsf.io) Detection Finding
@@ -74,7 +92,6 @@ pub struct SigmaRule {
 impl From<&SigmaRule> for Value {
     fn from(rule: &SigmaRule) -> Value {
         let time = Utc::now().timestamp_millis();
-
         let severity_id = match rule.level {
             Some(ref level) => match level.as_str() {
                 "informational" => 1,
@@ -185,6 +202,7 @@ impl<'de> Visitor<'de> for SigmaRuleVisitor {
             pub level: Option<String>,
             #[serde(flatten)]
             pub rule: RuleType,
+            pub enabled: Option<bool>,
             #[serde(flatten)]
             pub extra: HashMap<String, serde_json::Value>,
         }
@@ -213,6 +231,7 @@ impl<'de> Visitor<'de> for SigmaRuleVisitor {
             falsepositives: helper.falsepositives,
             level: helper.level,
             rule: helper.rule,
+            enabled: AtomicBool::new(helper.enabled.unwrap_or(true)),
             extra: helper.extra,
         })
     }
