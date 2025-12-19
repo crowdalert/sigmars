@@ -6,6 +6,7 @@ use super::detection::Detection;
 use crate::event::LogSource;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum Taxonomy {
     #[default]
     Sigma,

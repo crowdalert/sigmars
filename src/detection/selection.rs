@@ -272,7 +272,7 @@ impl Selection {
                     Ok(MatchType::Field(Field::new(key, v)?))
                 })
                 .collect::<Result<Vec<MatchType>, Box<dyn std::error::Error>>>()?,
-            _ => panic!("invalid value type"),
+            _ => Err(anyhow::anyhow!("invalid value type"))?,
         };
         Ok(Selection { items })
     }

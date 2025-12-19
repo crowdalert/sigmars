@@ -15,24 +15,24 @@ correlation = ["dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:async-tra
 mem_backend = []
 
 [dependencies]
+anyhow = "1.0"
 chrono = "0.4.38"
-futures-util =  { version = "0.3.31", features = ["tokio-io"], optional = true }
+futures-util =  { version = "0.3", features = ["tokio-io"], optional = true }
 glob = "0.3.1"
-lazy_static = "1.5.0"
-regex = "1.11.0"
+lazy_static = "1.5"
+regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0"
-tokio = { version = "1.41.0", features = ["full"], optional = true }
-tokio-util = { version = "0.7.12", features = ["full"], optional = true }
+tokio = { version = "1.41", features = ["full"], optional = true }
+tokio-util = { version = "0.7", features = ["full"], optional = true }
 multimap = "0.10"
 
-cidr = { version = "0.3.0" }
+cidr = { version = "0.3" }
 pest = { version = "2.7.14", features = ["pretty-print"] }
-pest_derive = { version = "2.7.14", features = ["grammar-extras"] }
-petgraph = "0.6.5"
-uuid = { version = "1.11.0", features = ["v4", "v7", "serde"] }
-thiserror = "2.0.8"
-anyhow = "1.0.94"
-async-trait = { version = "0.1.83", optional = true}
-log = "0.4.27"
+pest_derive = { version = "2.7", features = ["grammar-extras"] }
+petgraph = "0.6"
+uuid = { version = "1.11", features = ["v4", "v7", "serde"] }
+thiserror = "2.0"
+async-trait = { version = "0.1", optional = true}
+log = "0.4"
