@@ -1,5 +1,9 @@
+#[cfg(feature = "tsink")]
+use crate::correlation::backend::tsink::TSinkStore;
 use crate::detection::filter::Filter;
 use crate::event::{Event, RefEvent};
+
+use anyhow::Result;
 
 #[cfg(feature = "correlation")]
 use crate::correlation;
@@ -291,7 +295,56 @@ impl SigmaCollection {
     }
 }
 
-#[cfg(feature = "correlation")]
+#[cfg(all(feature = "correlation", feature = "tsink"))]
+impl SigmaCollection {
+    /// Initialize a `SigmaCollection` correlation rule backend
+    /// ``` rust
+    /// # use std::error::Error;
+    /// # use serde_json::json;
+    /// # use sigmars::event::{Event, LogSource};
+    /// # use sigmars::SigmaCollection;
+    /// # use sigmars::correlation::Backend;
+    /// # use sigmars::correlation::backend::tsink::TSinkStore;
+    /// # static RULES: &str = r#"
+    /// # title: test rule
+    /// # id: test-rule
+    /// # logsource:
+    /// #   category: test
+    /// # detection:
+    /// #   selection:
+    /// #     foo: bar
+    /// #   condition: selection
+    /// # "#;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn Error>> {
+    /// let mut rules: SigmaCollection = RULES.parse()?;
+    /// # Ok(())
+    /// # }
+    ///
+    pub fn with_backend(&mut self) -> Result<()> {
+        for rule in self.rules.values() {
+            if let RuleType::Correlation(ref corr) = rule.rule {
+                let engine = correlation::engine::CorrelationEngine::new(&corr);
+                corr.inner.set_engine(Box::new(engine))?;
+            }
+        };
+        Ok(())
+    }
+    
+}
+
+impl FromStr for SigmaCollection {
+    type Err = Box<dyn std::error::Error>;
+ 
+    fn from_str(s: &str) -> Result<SigmaCollection, Self::Err> {
+        serde_yaml::Deserializer::from_str(&s)
+            .map(|de| SigmaRule::deserialize(de).map_err(|e| e.into()))
+            .collect::<Result<Vec<_>, Self::Err>>()?
+            .try_into()
+    }
+}
+
+#[cfg(feature = "compat")]
 impl SigmaCollection {
     /// Initialize a `SigmaCollection` correlation rule backend
     /// ``` rust
@@ -415,17 +468,6 @@ impl TryFrom<Vec<SigmaRule>> for SigmaCollection {
 impl Into<Vec<SigmaRule>> for SigmaCollection {
     fn into(self) -> Vec<SigmaRule> {
         self.rules.into_values().collect()
-    }
-}
-
-impl FromStr for SigmaCollection {
-    type Err = Box<dyn std::error::Error>;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        serde_yaml::Deserializer::from_str(&s)
-            .map(|de| SigmaRule::deserialize(de).map_err(|e| e.into()))
-            .collect::<Result<Vec<_>, Self::Err>>()?
-            .try_into()
     }
 }
 

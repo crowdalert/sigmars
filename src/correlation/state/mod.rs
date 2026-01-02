@@ -1,6 +1,5 @@
 use std::collections::BinaryHeap;
 
-use async_trait::async_trait;
 use serde_json::Value;
 use thiserror::Error;
 

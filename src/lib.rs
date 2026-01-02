@@ -21,9 +21,9 @@ pub use rule::SigmaRule;
 
 #[cfg(feature = "mem_backend")]
 pub use correlation::state::mem::MemBackend;
-#[cfg(feature = "correlation")]
+#[cfg(feature = "compat")]
 pub use correlation::Backend;
-#[cfg(feature = "correlation")]
+#[cfg(feature = "compat")]
 pub use correlation::RuleState;
 
 #[cfg(test)]
