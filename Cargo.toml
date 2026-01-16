@@ -3,11 +3,11 @@ name = "sigmars"
 version = "0.3.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/crowdalert/sigmars"
+repository = "https://github.com/striemhq/sigmars"
 readme = "README.md"
 keywords = ["sigma", "detection", "security", "secops", "siem"]
 category = ["security", "parser"]
-description = "A library for sigmahq rule collections"
+description = "A library for Sigma rule collections"
 
 [features]
 default = ["correlation", "tsink"]
@@ -18,9 +18,9 @@ tsink = [ "correlation", "dep:tsink"]
 
 [dependencies]
 anyhow = "1.0"
-chrono = "0.4.38"
+chrono = "0.4"
 futures-util =  { version = "0.3", features = ["tokio-io"], optional = true }
-glob = "0.3.1"
+glob = "0.3"
 lazy_static = "1.5"
 regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
@@ -29,9 +29,9 @@ serde_yaml = "0"
 tokio = { version = "1.41", features = ["full"], optional = true }
 tokio-util = { version = "0.7", features = ["full"], optional = true }
 multimap = "0.10"
-tsink = { version = "0.4.2", optional = true }
+tsink = { version = "0.4", optional = true }
 cidr = { version = "0.3" }
-pest = { version = "2.7.14", features = ["pretty-print"] }
+pest = { version = "2.7", features = ["pretty-print"] }
 pest_derive = { version = "2.7", features = ["grammar-extras"] }
 petgraph = "0.6"
 uuid = { version = "1.11", features = ["v4", "v7", "serde"] }

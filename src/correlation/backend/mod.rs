@@ -10,7 +10,10 @@ pub struct Label {
 }
 impl Label {
     pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
-        Self { name: name.into(), value: value.into() }
+        Self {
+            name: name.into(),
+            value: value.into(),
+        }
     }
 }
 
@@ -34,11 +37,19 @@ pub struct Row {
 
 impl Row {
     pub fn new(metric: impl Into<String>, point: Point) -> Self {
-        Self { metric: metric.into(), labels: Vec::new(), point }
+        Self {
+            metric: metric.into(),
+            labels: Vec::new(),
+            point,
+        }
     }
 
     pub fn with_labels(metric: impl Into<String>, labels: Vec<Label>, point: Point) -> Self {
-        Self { metric: metric.into(), labels, point }
+        Self {
+            metric: metric.into(),
+            labels,
+            point,
+        }
     }
 }
 
@@ -49,12 +60,16 @@ impl Row {
 /// - read points for a specific label set
 /// - enumerate all label sets for a metric (needed for value_count)
 pub trait CorrelationStore: Send + Sync {
-
-    fn new() -> Result<Self, BoxError> where Self: Sized;
+    fn new() -> Result<Self, BoxError>
+    where
+        Self: Sized;
 
     /// Create a new store with the given retention duration.
     /// Default implementation calls `new()`, ignoring the retention parameter.
-    fn new_with_expiry(_: Duration) -> Result<Self, BoxError> where Self: Sized {
+    fn new_with_expiry(_: Duration) -> Result<Self, BoxError>
+    where
+        Self: Sized,
+    {
         Self::new()
     }
 
@@ -79,7 +94,10 @@ pub trait CorrelationStore: Send + Sync {
 pub struct CorrelationStoreNOP {}
 
 impl CorrelationStore for CorrelationStoreNOP {
-    fn new() -> Result<Self, BoxError> where Self: Sized {
+    fn new() -> Result<Self, BoxError>
+    where
+        Self: Sized,
+    {
         Ok(Self {})
     }
 
@@ -87,13 +105,7 @@ impl CorrelationStore for CorrelationStoreNOP {
         Ok(())
     }
 
-    fn select(
-        &self,
-        _: &str,
-        _: &[Label],
-        _: i64,
-        _: i64,
-    ) -> Result<Vec<Point>, BoxError> {
+    fn select(&self, _: &str, _: &[Label], _: i64, _: i64) -> Result<Vec<Point>, BoxError> {
         Ok(Vec::new())
     }
 

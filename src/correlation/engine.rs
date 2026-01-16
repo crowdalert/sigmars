@@ -1,13 +1,15 @@
 use anyhow::Result;
+use serde_json::{Map, Value};
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use serde_json::{Value, Map};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::collections::{HashSet, VecDeque};
 
-use crate::correlation::serde::{ConditionOrList, ValueCondition};
+use crate::correlation::serde::ConditionOrList;
 use crate::event::RefEvent;
+
 use super::backend::CorrelationStore;
 use super::{CorrelationRule, CorrelationType};
+
 #[cfg(feature = "tsink")]
 use super::backend::tsink::TSinkStore;
 
@@ -18,125 +20,100 @@ pub struct CorrelationEngine {
 
 impl CorrelationEngine {
     #[cfg(feature = "tsink")]
-    pub fn new(rule: &CorrelationRule) -> Self {
-        let store = Box::new(TSinkStore::default());
-        Self {
+    pub fn new(rule: &CorrelationRule) -> Result<Self> {
+        let store = Box::new(TSinkStore::new_with_expiry(rule.inner.timespan)
+            .map_err(|e| anyhow::anyhow!("failed to create TSinkStore: {}", e))?);
+        Ok(Self {
             store,
             rule: rule.clone(),
-        }
+        })
     }
 
-
-    pub fn new_with_storage(
-        store: Box<dyn CorrelationStore>,
-        rule: CorrelationRule,
-    ) -> Self {
-        Self {
-            store,
-            rule,
-        }
+    pub fn new_with_storage(store: Box<dyn CorrelationStore>, rule: CorrelationRule) -> Self {
+        Self { store, rule }
     }
-/*
-    pub fn on_match(
-        &self,
-        matched: &String,
-        group_values: &Map<String, Value>,
-    ) -> Result<Vec<String>> {
 
-    self.insert(corr, corr_id, src_id, &group_key, group_values, now)?;
-
-                if self.eval(corr, corr_id, &group_key, now)? {
-                    if emitted.insert(corr_id) {
-                        out.push(corr_id);
-                        queue.push_back(corr_id); // chaining
-                    }
+    fn insert(&self, origin: &str, group: &str, data: &Map<String, Value>) {
+        let metric = metric_name(origin, group);
+        let labels = match self.rule.inner.correlation_type {
+            CorrelationType::ValueCount(ref vc) => {
+                if let Some(v) = data.get(&vc.condition.field) {
+                    vec![super::backend::Label::new("v", json_value_to_key(v))]
+                } else {
+                    Vec::new()
                 }
             }
-
-    fn insert(
-        &self,
-        origin: &str,
-        event: &Map<String, Value>,
-        now: i64,
-    ) -> Result<()> {
-        let metric = metric_name(corr_id, src_id, group_key);
-        println!("Inserting occurrence for metric: {}", metric);
-        let p = Point::new(now, 1.0);
-
-        let row = match corr.corr_type {
-            CorrelationType::ValueCount => {
-                let field = corr.field.as_deref().unwrap();
-                let Some(v) = group_values.get(field) else {
-                    return Ok(());
-                };
-                let v_str = json_value_to_key(v);
-                Row::with_labels(metric, vec![Label::new("v", v_str)], p)
-            }
-            _ => Row::new(metric, p),
+            _ => Vec::new(),
         };
-
-        self.store.insert_rows(&[row]).map_err(BackendError::from)?;
-        Ok(())
+        let row = super::backend::Row {
+            metric,
+            labels,
+            point: super::backend::Point {
+                timestamp: unix_seconds(),
+                value: 1.0,
+            },
+        };
+        let _ = self.store.insert_rows(&[row]);
     }
-    */
-    fn insert(&self, origin: &str, group: &str) {}
 
-    pub fn matches(&self,
-        event: &RefEvent,
-        prev: &Vec<String>) -> Result<bool> {
-
+    pub fn matches(&self, event: &RefEvent, prev: &Vec<String>) -> Result<bool> {
         let now = unix_seconds();
 
-        let Some(data) = event.data.as_object() else { return Ok(false); };
+        let Some(data) = event.data.as_object() else {
+            return Ok(false);
+        };
         let corr = &self.rule.inner;
 
         let group = match group_key(&corr.group_by, data) {
             Some(gk) => gk,
             None => return Ok(false),
         };
-        
-        prev
-        .iter()
-        .filter(|p| {
-            corr.rules.contains(*p)
-        })
-        .map(|r| {
-            self.insert(r, &group)
-        })
-        .for_each(drop);
+
+        prev.iter()
+            .filter(|p| corr.rules.contains(*p))
+            .map(|r| {
+                self.insert(r, &group, &data);
+            })
+            .for_each(drop);
 
         let start = now - corr.timespan.as_secs() as i64;
-
-        let Some(event) = event.data.as_object() else { return Ok(false); };
-
-        let group_key = match group_key(&corr.group_by, event) {
-            Some(gk) => gk,
-            None => return Ok(false),
-        };
 
         match &corr.correlation_type {
             CorrelationType::EventCount(ec) => {
                 let mut total = 0u64;
                 for src in &corr.rules {
-                    let metric = metric_name(&src, &group_key);
-                    let pts = self.store.select(&metric, &[], start, now)
-                    .map_err(|_| anyhow::anyhow!("whatever"))?;
+                    let metric = metric_name(&src, &group);
+                    let pts = self
+                        .store
+                        .select(&metric, &[], start, now)
+                        .map_err(|_| anyhow::anyhow!("whatever"))?;
                     total += pts.len() as u64;
                 }
                 match &ec.condition {
                     ConditionOrList::Condition(c) => Ok(c.matches(total)),
-                    ConditionOrList::List(conditions) => Ok(conditions.iter().all(|c| c.matches(total))),
+                    ConditionOrList::List(conditions) => {
+                        Ok(conditions.iter().all(|c| c.matches(total)))
+                    }
                 }
             }
 
             CorrelationType::ValueCount(vc) => {
                 let mut distinct: HashSet<String> = HashSet::new();
                 for src in &corr.rules {
-                    let metric = metric_name(src, &group_key);
-                    let series = self.store.select_all(&metric, start, now).map_err(|_| anyhow::anyhow!("idk"))?;
+                    let metric = metric_name(src, &group);
+                    let series = self
+                        .store
+                        .select_all(&metric, start, now)
+                        .map_err(|_| anyhow::anyhow!("idk"))?;
                     for (labels, pts) in series {
-                        if pts.is_empty() { continue; }
-                        if let Some(v) = labels.iter().find(|l| l.name == "v").map(|l| l.value.clone()) {
+                        if pts.is_empty() {
+                            continue;
+                        }
+                        if let Some(v) = labels
+                            .into_iter()
+                            .find(|l| l.name == "v")
+                            .map(|l| l.value.clone())
+                        {
                             distinct.insert(v);
                         }
                     }
@@ -179,21 +156,6 @@ impl CorrelationEngine {
             _ => Ok(false),
         }
     }
-
-}
-
-fn parse_timespan(s: &str) -> Result<Duration, ()> {
-    if s.len() < 2 { return Err(()); }
-    let (num, unit) = s.split_at(s.len() - 1);
-    let n: u64 = num.parse().map_err(|_| ())?;
-    let secs = match unit {
-        "s" => n,
-        "m" => n * 60,
-        "h" => n * 3600,
-        "d" => n * 86400,
-        _ => return Err(()),
-    };
-    Ok(Duration::from_secs(secs))
 }
 
 fn unix_seconds() -> i64 {
@@ -207,7 +169,9 @@ fn group_key(group_by: &[String], group_values: &Map<String, Value>) -> Option<S
     let mut out = String::new();
     for (i, f) in group_by.iter().enumerate() {
         let v = group_values.get(f)?;
-        if i != 0 { out.push('\x1f'); }
+        if i != 0 {
+            out.push('\x1f');
+        }
         out.push_str(&format!("{}={}", f, json_value_to_key(v)));
     }
     Some(out)

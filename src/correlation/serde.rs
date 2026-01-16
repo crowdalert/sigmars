@@ -1,15 +1,10 @@
-use serde::{de, Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
+use serde::{Deserializer, Serializer, de};
 use std::collections::HashMap;
 use std::{fmt, sync::OnceLock, time::Duration};
-#[cfg(feature = "mem_backend")]
-use crate::correlation::state;
 
 use super::engine::CorrelationEngine;
 use anyhow::Result;
-
-#[cfg(feature = "mem_backend")]
-use super::state;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -22,11 +17,6 @@ pub enum Condition {
 }
 
 impl Condition {
-    #[deprecated(note = "use matches() instead")]
-    pub fn is_match(&self, value: u64) -> bool {
-        self.matches(value)
-    }
-
     pub fn matches(&self, value: u64) -> bool {
         match self {
             Condition::Gt(n) => value > *n,
@@ -97,7 +87,9 @@ pub struct Correlation {
 impl Correlation {
     pub fn set_engine(&self, engine: Box<CorrelationEngine>) -> Result<()> {
         let engine = Box::new(*engine);
-        self.state.set(engine).map_err(|_| anyhow::anyhow!("state already initialized"))
+        self.state
+            .set(engine)
+            .map_err(|_| anyhow::anyhow!("state already initialized"))
     }
 }
 impl Clone for Correlation {
@@ -109,7 +101,7 @@ impl Clone for Correlation {
             group_by: self.group_by.clone(),
             id: self.id.clone(),
             state: OnceLock::new(),
-            }
+        }
     }
 }
 
@@ -126,7 +118,7 @@ impl<'de> Deserialize<'de> for Correlation {
     where
         D: Deserializer<'de>,
     {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, Debug)]
         #[serde(rename_all = "kebab-case")]
         pub struct CorrelationHelper {
             #[serde(flatten)]
@@ -140,12 +132,11 @@ impl<'de> Deserialize<'de> for Correlation {
         }
 
         let rule = CorrelationHelper::deserialize(deserializer)?;
-        let timespan = rule.timespan;
 
         Ok(Correlation {
             correlation_type: rule.correlation_type,
             rules: rule.rules,
-            timespan,
+            timespan: rule.timespan,
             group_by: rule.group_by,
             id: rule.id,
             state: OnceLock::new(),

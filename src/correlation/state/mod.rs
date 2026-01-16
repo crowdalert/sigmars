@@ -62,7 +62,7 @@ pub trait RuleState: Send + Sync {
 pub trait Backend: Send {
     /// Register a correlation rule with the backend
     async fn register(&mut self, _: &mut CorrelationRule)
-        -> Result<(), Box<dyn std::error::Error>>;
+    -> Result<(), Box<dyn std::error::Error>>;
 }
 
 #[derive(Error, Debug)]

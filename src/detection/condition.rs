@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use glob;
 
+use pest::Parser;
 use pest::iterators::Pairs;
 use pest::pratt_parser::PrattParser;
-use pest::Parser;
 
 /// The parser for Sigma conditions.
 #[derive(pest_derive::Parser)]

@@ -74,8 +74,7 @@ pub struct SigmaRule {
 
 impl SigmaRule {
     pub fn is_enabled(&self) -> bool {
-        self.enabled
-            .load(std::sync::atomic::Ordering::Relaxed)
+        self.enabled.load(std::sync::atomic::Ordering::Relaxed)
     }
     pub fn enable(&self) {
         self.enabled

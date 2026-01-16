@@ -5,8 +5,8 @@ use futures_util::StreamExt;
 use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{
-    mpsc::{self, Receiver, Sender},
     RwLock,
+    mpsc::{self, Receiver, Sender},
 };
 
 use tokio_util::time::delay_queue::DelayQueue;

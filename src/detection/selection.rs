@@ -1,6 +1,6 @@
 use cidr;
 use regex::{Regex, RegexBuilder};
-use serde_json::{json, Value as JsonValue};
+use serde_json::{Value as JsonValue, json};
 use serde_yaml::Value as YamlValue;
 use std::{net::IpAddr, str::FromStr};
 
@@ -174,7 +174,7 @@ impl Field {
                                 _ => {
                                     return Err(regex::Error::Syntax(
                                         format!("invalid modifier: {}", modifier).into(),
-                                    ))
+                                    ));
                                 }
                             };
                         }
