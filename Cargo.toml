@@ -1,6 +1,6 @@
 [package]
 name = "sigmars"
-version = "0.3.0"
+version = "1.0.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/striemhq/sigmars"
@@ -12,8 +12,6 @@ description = "A library for Sigma rule collections"
 [features]
 default = ["correlation", "tsink"]
 correlation = []
-compat = [ "mem_backend", "dep:tokio", "dep:tokio-util", "dep:futures-util", "dep:async-trait" ]
-mem_backend = []
 tsink = [ "correlation", "dep:tsink"]
 
 [dependencies]

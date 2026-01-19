@@ -13,6 +13,32 @@ use super::{CorrelationRule, CorrelationType};
 #[cfg(feature = "tsink")]
 use super::backend::tsink::TSinkStore;
 
+/// Engine for evaluating Sigma correlation rules against events.
+///
+/// The `CorrelationEngine` maintains state for a single correlation rule and
+/// determines when the correlation conditions are satisfied based on incoming events.
+///
+/// # Correlation Types
+///
+/// The engine supports the following correlation types:
+///
+/// - **Event Count**: Counts events matching the dependent rules within a timespan
+/// - **Value Count**: Counts distinct values of a field across matching events
+/// - **Temporal**: Detects when all specified rules have events within a timespan (order-independent)
+/// - **Temporal Ordered**: Detects when all specified rules have events in a specific order within a timespan
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use sigmars::correlation::engine::CorrelationEngine;
+/// use sigmars::correlation::backend::tsink::TSinkStore;
+/// use std::time::Duration;
+///
+/// let store = Box::new(TSinkStore::new_with_expiry(Duration::from_secs(300)).unwrap());
+/// let engine = CorrelationEngine::new_with_storage(store, corr_rule);
+///
+/// let result = engine.matches(&event, &vec!["rule-a".to_string()]).unwrap();
+/// ```
 pub struct CorrelationEngine {
     store: Box<dyn CorrelationStore>,
     rule: CorrelationRule,
@@ -33,6 +59,16 @@ impl CorrelationEngine {
         Self { store, rule }
     }
 
+    /// Inserts an event into the correlation store.
+    ///
+    /// Records that a rule matched for a specific group, enabling subsequent
+    /// correlation checks to detect patterns across multiple rule matches.
+    ///
+    /// # Arguments
+    ///
+    /// * `origin` - The ID of the rule that matched
+    /// * `group` - The group key (derived from `group-by` fields)
+    /// * `data` - The event data (used for extracting values in value_count correlations)
     fn insert(&self, origin: &str, group: &str, data: &Map<String, Value>) {
         let metric = metric_name(origin, group);
         let labels = match self.rule.inner.correlation_type {
@@ -49,16 +85,30 @@ impl CorrelationEngine {
             metric,
             labels,
             point: super::backend::Point {
-                timestamp: unix_seconds(),
+                timestamp: unix_millis(),
                 value: 1.0,
             },
         };
         let _ = self.store.insert_rows(&[row]);
     }
 
+    /// Evaluates whether the correlation rule matches given an event and prior rule matches.
+    ///
+    /// This is the main entry point for correlation evaluation. It:
+    /// 1. Extracts the group key from the event based on `group-by` configuration
+    /// 2. Records any prior rule matches in the correlation store
+    /// 3. Evaluates the correlation condition based on the correlation type
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The current event being processed
+    /// * `prev` - List of rule IDs that matched for this event (from detection rules)
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(true)` if the correlation condition is satisfied, `Ok(false)` otherwise.
+    /// Returns an error if the event data is invalid or storage operations fail.
     pub fn matches(&self, event: &RefEvent, prev: &Vec<String>) -> Result<bool> {
-        let now = unix_seconds();
-
         let Some(data) = event.data.as_object() else {
             return Ok(false);
         };
@@ -76,10 +126,14 @@ impl CorrelationEngine {
             })
             .for_each(drop);
 
-        let start = now - corr.timespan.as_secs() as i64;
+        // Capture 'now' AFTER inserting so we don't miss events we just inserted
+        // Add 1ms buffer because select may use exclusive upper bound
+        let now = unix_millis() + 1;
+        let start = now - (corr.timespan.as_millis() as i64);
 
         match &corr.correlation_type {
             CorrelationType::EventCount(ec) => {
+                // Event count correlation: count total events across all rules
                 let mut total = 0u64;
                 for src in &corr.rules {
                     let metric = metric_name(&src, &group);
@@ -98,6 +152,7 @@ impl CorrelationEngine {
             }
 
             CorrelationType::ValueCount(vc) => {
+                // Value count correlation: count distinct values of a field across all rules
                 let mut distinct: HashSet<String> = HashSet::new();
                 for src in &corr.rules {
                     let metric = metric_name(src, &group);
@@ -120,49 +175,73 @@ impl CorrelationEngine {
                 }
                 Ok(vc.condition.condition.matches(distinct.len() as u64))
             }
-            _ => unimplemented!(),
-            /*
+
             CorrelationType::Temporal => {
-                let mut present = 0u64;
+                // Temporal correlation: all rules must have at least one event within the timespan
+                // Order does not matter
+                let mut rules_with_events = HashSet::new();
+                
                 for src in &corr.rules {
-                    let metric = metric_name(src, &group_key);
-                    let pts = self.store.select(&metric, &[], start, now).map_err(anyhow::Error::from)?;
-                    if !pts.is_empty() { present += 1; }
+                    let metric = metric_name(src, &group);
+                    let pts = self
+                        .store
+                        .select(&metric, &[], start, now)
+                        .map_err(|e| anyhow::anyhow!("temporal select error: {}", e))?;
+                    
+                    if !pts.is_empty() {
+                        rules_with_events.insert(src.clone());
+                    }
                 }
-                Ok(c.matches(present))
+                
+                // All rules must have at least one event
+                Ok(rules_with_events.len() == corr.rules.len())
             }
 
             CorrelationType::TemporalOrdered => {
+                // Temporal ordered correlation: all rules must have events within the timespan
+                // AND they must appear in the order specified in the rules array
+                
+                // Collect all events with their timestamps and rule index
                 let mut events: Vec<(i64, usize)> = Vec::new();
-                for (idx, &src) in corr.related.iter().enumerate() {
-                    let metric = metric_name(src, &group_key);
-                    let pts = self.store.select(&metric, &[], start, now).map_err(BackendError::from)?;
+                
+                for (idx, src) in corr.rules.iter().enumerate() {
+                    let metric = metric_name(src, &group);
+                    let pts = self
+                        .store
+                        .select(&metric, &[], start, now)
+                        .map_err(|e| anyhow::anyhow!("temporal ordered select error: {}", e))?;
+                    
                     for p in pts {
                         events.push((p.timestamp, idx));
                     }
                 }
-                events.sort_by_key(|(ts, _)| *ts);
 
-                let mut expected = 0usize;
+                events.sort_by_key(|(ts, _)| *ts);
+                
+                // Check if we can find all rules in order
+                let mut expected_idx = 0usize;
+                
                 for (_, idx) in events {
-                    if idx == expected {
-                        expected += 1;
-                        if expected >= corr.related.len() { break; }
+                    if idx == expected_idx {
+                        expected_idx += 1;
+                        if expected_idx >= corr.rules.len() {
+                            // Found all rules in order
+                            return Ok(true);
+                        }
                     }
                 }
 
-                Ok(vc.condition.matches(expected as u64))
-            }*/
-            _ => Ok(false),
+                Ok(false)
+            }
         }
     }
 }
 
-fn unix_seconds() -> i64 {
+fn unix_millis() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
-        .as_secs() as i64
+        .as_millis() as i64
 }
 
 fn group_key(group_by: &[String], group_values: &Map<String, Value>) -> Option<String> {

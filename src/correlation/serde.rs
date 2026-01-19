@@ -75,15 +75,9 @@ pub struct Correlation {
     pub(crate) id: String,
 
     #[serde(skip)]
-    #[cfg(feature = "compat")]
-    pub(super) state: OnceLock<Box<dyn state::RuleState>>,
-
-    #[serde(skip)]
-    #[cfg(not(feature = "compat"))]
     pub(super) state: OnceLock<Box<CorrelationEngine>>,
 }
 
-#[cfg(not(feature = "compat"))]
 impl Correlation {
     pub fn set_engine(&self, engine: Box<CorrelationEngine>) -> Result<()> {
         let engine = Box::new(*engine);

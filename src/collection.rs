@@ -8,7 +8,7 @@ use crate::correlation;
 
 use log::warn;
 use petgraph::{Directed, Graph, graph};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -334,7 +334,6 @@ impl SigmaCollection {
     }
 }
 
-#[cfg(not(feature = "compat"))]
 impl SigmaCollection {
     pub fn matches(&self, event: &RefEvent) -> Result<Vec<String>, Box<dyn std::error::Error>> {
         let mut prior = self.get_detection_matches_from_ref(&event);
@@ -365,119 +364,6 @@ impl SigmaCollection {
     }
 }
 
-#[cfg(feature = "compat")]
-impl SigmaCollection {
-    /// Initialize a `SigmaCollection` correlation rule backend
-    /// ``` rust
-    /// # use std::error::Error;
-    /// # use serde_json::json;
-    /// # use sigmars::event::{Event, LogSource};
-    /// # use sigmars::SigmaCollection;
-    /// # use sigmars::correlation::Backend;
-    /// # use sigmars::correlation::state::mem::MemBackend;
-    /// # static RULES: &str = r#"
-    /// # title: test rule
-    /// # id: test-rule
-    /// # logsource:
-    /// #   category: test
-    /// # detection:
-    /// #   selection:
-    /// #     foo: bar
-    /// #   condition: selection
-    /// # "#;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn Error>> {
-    /// let mut rules: SigmaCollection = RULES.parse()?;
-    /// let mut backend = MemBackend::new().await;
-    /// rules.init(&mut backend).await;
-    /// # Ok(())
-    /// # }
-    ///
-    pub async fn init(&mut self, backend: &mut impl correlation::Backend) {
-        for rule in self.rules.values_mut() {
-            if let RuleType::Correlation(ref mut corr) = rule.rule {
-                backend
-                    .register(corr)
-                    .await
-                    .expect("Failed to register correlation rule");
-            }
-        }
-    }
-
-    /// apply Sigma rules to an [`Event`], returning a list of rule IDs
-    /// similar to [`get_detection_matches`], but also evaluates correlation
-    /// rules
-    ///
-    /// Correlation rules are evaluated after detection rules
-    /// in dependency order
-    ///
-    /// [`get_detection_matches`]: #method.get_detection_matches
-    /// [`Event`]: event/struct.Event.html
-    pub async fn get_matches(
-        &self,
-        event: &Event,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        self.get_matches_from_ref(&event.into()).await
-    }
-
-    pub async fn get_matches_from_ref<'r>(
-        &self,
-        event: &RefEvent<'r>,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let mut prior = self.get_detection_matches_from_ref(&event);
-        self.push_correlation_matches(event, &mut prior).await?;
-        Ok(prior)
-    }
-
-    /// apply all Sigma rules to an event, returning a list of rule IDs
-    /// similar to [`get_detection_matches_unfiltered`], but also evaluates correlation
-    /// rules
-    ///
-    /// [`get_detection_matches_unfiltered`]: #method.get_detection_matches_unfiltered
-    pub async fn get_matches_unfiltered(
-        &self,
-        event: &Event,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let mut prior = self.get_detection_matches_unfiltered(event);
-        self.push_correlation_matches(&(event).into(), &mut prior)
-            .await?;
-        Ok(prior)
-    }
-
-    /// apply correlation rules to an event and a list of matching detection rule IDs
-    /// correlation rule ID's are appended to the list of prior matches
-    pub async fn push_correlation_matches<'r>(
-        &self,
-        event: &RefEvent<'r>,
-        prior: &mut Vec<String>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let rules = self
-            .deps
-            .sorted
-            .iter()
-            .filter_map(|idx| {
-                if prior.iter().filter_map(|r| self.deps.idx.get(r)).any(|n| {
-                    petgraph::algo::has_path_connecting(&self.deps.graph, *n, *idx, None)
-                        || n == idx
-                }) {
-                    Some(self.rules.get(&self.deps.graph[*idx])?)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        for rule in rules {
-            if let RuleType::Correlation(ref correlation) = rule.rule {
-                if correlation.is_match(&event, prior).await? {
-                    prior.push(rule.id.clone());
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
 impl TryFrom<Vec<SigmaRule>> for SigmaCollection {
     type Error = Box<dyn std::error::Error>;
 
@@ -492,6 +378,17 @@ impl TryFrom<Vec<SigmaRule>> for SigmaCollection {
 impl Into<Vec<SigmaRule>> for SigmaCollection {
     fn into(self) -> Vec<SigmaRule> {
         self.rules.into_values().collect()
+    }
+}
+
+impl std::str::FromStr for SigmaCollection {
+    type Err = Box<dyn std::error::Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_yaml::Deserializer::from_str(&s)
+            .map(|de| SigmaRule::deserialize(de).map_err(|e| e.into()))
+            .collect::<Result<Vec<_>, Self::Err>>()?
+            .try_into()
     }
 }
 
