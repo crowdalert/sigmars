@@ -1011,3 +1011,56 @@ correlation:
     assert!(!res.contains(&"brute-force-success".to_string()), 
         "Temporal ordered correlation should NOT match when order is wrong");
 }
+
+
+#[test]
+fn test_collection_temporal_ordered_wrong_group_by() {
+    let rules = r#"
+title: Failed Login
+id: failed-login
+logsource:
+    category: auth
+detection:
+    selection:
+        action: login
+        status: failed
+    condition: selection
+---
+title: Successful Login
+id: success-login
+logsource:
+    category: auth
+detection:
+    selection:
+        action: login
+        status: success
+    condition: selection
+---
+title: Brute Force Success
+id: brute-force-success
+correlation:
+    type: temporal_ordered
+    rules:
+        - failed-login
+        - success-login
+    group-by:
+        - source_ip
+    timespan: 5m
+"#;
+    let mut collection: SigmaCollection = rules.parse().unwrap();
+    collection.with_backend().unwrap();
+
+    let failed = Event::new(json!({"action": "login", "status": "failed", "source_ip": "10.0.0.1"}));
+    let success = Event::new(json!({"action": "login", "status": "success", "source_ip": "10.0.0.2"}));
+
+
+    let res = collection.matches(&(&failed).into()).unwrap();
+    assert!(res.contains(&"failed-login".to_string()));
+    
+    std::thread::sleep(std::time::Duration::from_millis(10));
+
+    let res = collection.matches(&(&success).into()).unwrap();
+    assert!(res.contains(&"success-login".to_string()));
+    assert!(!res.contains(&"brute-force-success".to_string()), 
+        "correlation should NOT match when group-by does not match");
+}

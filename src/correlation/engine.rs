@@ -225,7 +225,6 @@ impl CorrelationEngine {
                     if idx == expected_idx {
                         expected_idx += 1;
                         if expected_idx >= corr.rules.len() {
-                            // Found all rules in order
                             return Ok(true);
                         }
                     }
