@@ -1,13 +1,15 @@
 use std::sync::atomic::AtomicBool;
 use std::{collections::HashMap, hash::Hash};
 
-use chrono::prelude::*;
 use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
 use serde::{self, Deserialize, Serialize};
-use serde_json::Value;
 use std::fmt;
 
 use crate::detection::DetectionRule;
+
+fn is_disabled_false(disabled: &AtomicBool) -> bool {
+    !disabled.load(std::sync::atomic::Ordering::Relaxed)
+}
 
 #[cfg(feature = "correlation")]
 use crate::correlation::CorrelationRule;
@@ -65,8 +67,23 @@ pub struct SigmaRule {
     pub level: Option<String>,
     #[serde(flatten)]
     pub(crate) rule: RuleType,
-    #[doc(hidden)]
-    pub enabled: AtomicBool,
+
+    /// Fields for compatibility with the general fields in
+    /// [RunReveal's Sigma extension](https://docs.runreveal.com/detections/sigma-streaming)
+    /// that aren't specific to their system
+    ///
+    /// Excluded are the mitreAttacks & mitreTechniques fields: the information they carry
+    /// is in the core Sigma specification under the tags.attack taxonomy
+    #[serde(skip_serializing_if = "is_disabled_false")]
+    pub disabled: AtomicBool,
+    #[serde(rename = "riskScore", skip_serializing_if = "Option::is_none")]
+    pub risk_score: Option<u32>,
+    #[serde(rename = "notificationNames", skip_serializing_if = "Option::is_none")]
+    pub notification_names: Option<Vec<String>>,
+    #[serde(rename = "notificationTemplate", skip_serializing_if = "Option::is_none")]
+    pub notification_template: Option<String>,
+
+    // anything left over
     #[doc(hidden)]
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -74,71 +91,15 @@ pub struct SigmaRule {
 
 impl SigmaRule {
     pub fn is_enabled(&self) -> bool {
-        self.enabled.load(std::sync::atomic::Ordering::Relaxed)
+        !self.disabled.load(std::sync::atomic::Ordering::Relaxed)
     }
     pub fn enable(&self) {
-        self.enabled
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-    }
-    pub fn disable(&self) {
-        self.enabled
+        self.disabled
             .store(false, std::sync::atomic::Ordering::Relaxed);
     }
-}
-
-/// A convenience function to convert a Sigma rule an [OCSF](https://ocsf.io) Detection Finding
-/// (as JSON)
-impl From<&SigmaRule> for Value {
-    fn from(rule: &SigmaRule) -> Value {
-        let time = Utc::now().timestamp_millis();
-        let severity_id = match rule.level {
-            Some(ref level) => match level.as_str() {
-                "informational" => 1,
-                "low" => 2,
-                "medium" => 3,
-                "high" => 4,
-                "critical" => 5,
-                _ => 99,
-            },
-            None => 0,
-        };
-
-        let mut value = serde_json::json!({
-          "category_uid": 2,
-          "category_name": "Findings",
-          "class_uid": 2004,
-          "class_name": "Detection Finding",
-          "activity_id": 1,
-          "activity_name":  "Create",
-          "type_uid": 200401,
-          "type_name": "Detection Finding: Create",
-          "status_id": 1,
-          "status": "New",
-          "time": time,
-          "metadata": {
-            "version": "1.3.0",
-            "product": {
-              "vendor_name": "sigmars",
-              "name": "sigmars"
-            }
-          },
-          "finding_info": {
-            "title": rule.title,
-            "uid": rule.id,
-            "analytic": {
-              "type_id": 1,
-              "type": "Rule"
-            }
-          },
-          "severity_id": severity_id,
-        });
-
-        match rule.level {
-            Some(ref level) => value["severity"] = level.clone().into(),
-            None => {}
-        };
-
-        value
+    pub fn disable(&self) {
+        self.disabled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -201,7 +162,15 @@ impl<'de> Visitor<'de> for SigmaRuleVisitor {
             pub level: Option<String>,
             #[serde(flatten)]
             pub rule: RuleType,
-            pub enabled: Option<bool>,
+
+            pub disabled: Option<bool>,
+            #[serde(rename = "riskScore")]
+            pub risk_score: Option<u32>,
+            #[serde(rename = "notificationNames")]
+            pub notification_names: Option<Vec<String>>,
+            #[serde(rename = "notificationTemplate")]
+            pub notification_template: Option<String>,
+
             #[serde(flatten)]
             pub extra: HashMap<String, serde_json::Value>,
         }
@@ -230,7 +199,10 @@ impl<'de> Visitor<'de> for SigmaRuleVisitor {
             falsepositives: helper.falsepositives,
             level: helper.level,
             rule: helper.rule,
-            enabled: AtomicBool::new(helper.enabled.unwrap_or(true)),
+            disabled: AtomicBool::new(helper.disabled.unwrap_or(false)),
+            risk_score: helper.risk_score,
+            notification_names: helper.notification_names,
+            notification_template: helper.notification_template,
             extra: helper.extra,
         })
     }

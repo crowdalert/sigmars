@@ -88,9 +88,8 @@ impl SigmaCollection {
         &mut self,
         path: &str,
     ) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
-        let rules = glob::glob(format!("{}/**/*.yml", path).as_str())?
+        let rules = glob::glob(format!("{}/**/*.y*ml", path).as_str())?
             .into_iter()
-            .chain(glob::glob(format!("{}/**/*.yaml", path).as_str())?.into_iter())
             .flatten()
             .filter_map(|entry| {
                 std::fs::read_to_string(&entry)
